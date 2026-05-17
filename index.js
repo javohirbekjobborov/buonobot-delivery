@@ -8,8 +8,8 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 const PORT = process.env.PORT || 3000;
 const APP_URL = process.env.APP_URL || 'http://localhost:' + PORT;
-const ADMIN_IDS = (process.env.ADMIN_CHAT_ID || '').split(',').map(s => s.trim()).filter(Boolean);
-const COURIER_IDS = (process.env.COURIER_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+const ADMIN_IDS = (process.env.ADMIN_CHAT_ID || '').split(',').map(s=>s.trim()).filter(Boolean);
+const COURIER_IDS = (process.env.COURIER_IDS || '').split(',').map(s=>s.trim()).filter(Boolean);
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -122,13 +122,33 @@ app.get('/api/admin/couriers', (req,res) => {
 app.get('/api/admin/products', (req,res) => {
   const u = getUser(req);
   if (!u||u.role!=='admin') return res.status(403).json({error:'Forbidden'});
-  res.json(db.prepare('SELECT p.*,c.name_uz as cat_name FROM products p JOIN categories c ON p.category_id=c.id').all());
+  res.json(db.prepare('SELECT p.*,c.name_uz as cat_name FROM products p JOIN categories c ON p.category_id=c.id ORDER BY c.sort_order,p.id').all());
+});
+
+app.post('/api/admin/products', (req,res) => {
+  const u = getUser(req);
+  if (!u||u.role!=='admin') return res.status(403).json({error:'Forbidden'});
+  const {name_uz,name_ru,desc_uz,desc_ru,price,category_id,image,active} = req.body;
+  const r = db.prepare('INSERT INTO products (category_id,name_uz,name_ru,desc_uz,desc_ru,price,image,active) VALUES (?,?,?,?,?,?,?,?)').run(category_id||1,name_uz,name_ru,desc_uz||'',desc_ru||'',price,image||'',active!==undefined?active:1);
+  res.json({ok:true,id:r.lastInsertRowid});
 });
 
 app.put('/api/admin/products/:id', (req,res) => {
   const u = getUser(req);
   if (!u||u.role!=='admin') return res.status(403).json({error:'Forbidden'});
-  db.prepare('UPDATE products SET active=? WHERE id=?').run(req.body.active, req.params.id);
+  const {name_uz,name_ru,desc_uz,desc_ru,price,category_id,image,active} = req.body;
+  if (name_uz!==undefined) {
+    db.prepare('UPDATE products SET name_uz=?,name_ru=?,desc_uz=?,desc_ru=?,price=?,category_id=?,image=?,active=? WHERE id=?').run(name_uz,name_ru||'',desc_uz||'',desc_ru||'',price,category_id||1,image||'',active!==undefined?active:1,req.params.id);
+  } else {
+    db.prepare('UPDATE products SET active=? WHERE id=?').run(active,req.params.id);
+  }
+  res.json({ok:true});
+});
+
+app.delete('/api/admin/products/:id', (req,res) => {
+  const u = getUser(req);
+  if (!u||u.role!=='admin') return res.status(403).json({error:'Forbidden'});
+  db.prepare('UPDATE products SET active=0 WHERE id=?').run(req.params.id);
   res.json({ok:true});
 });
 
