@@ -27,6 +27,7 @@ db.exec(`
     comment TEXT DEFAULT '',
     payment TEXT DEFAULT 'cash',
     payment_status TEXT DEFAULT 'pending',
+    delivery_type TEXT DEFAULT 'delivery',
     status TEXT DEFAULT 'new',
     courier_id TEXT, courier_name TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -34,25 +35,38 @@ db.exec(`
   );
 `);
 
+try { db.exec("ALTER TABLE orders ADD COLUMN delivery_type TEXT DEFAULT 'delivery'"); } catch(e) {}
+
+const oldDefault = ['Burgerlar','Pizzalar','Salatlar','Ichimliklar'];
+const existingCats = db.prepare('SELECT name_uz FROM categories ORDER BY id').all().map(c=>c.name_uz);
+if (existingCats.length === 4 && existingCats.every((n,i)=>n===oldDefault[i])) {
+  db.exec('DELETE FROM products; DELETE FROM categories; DELETE FROM sqlite_sequence WHERE name IN ("products","categories");');
+}
+
 if (db.prepare('SELECT COUNT(*) as c FROM categories').get().c === 0) {
   const ac = db.prepare('INSERT INTO categories (name_uz,name_ru,emoji,sort_order) VALUES (?,?,?,?)');
-  ac.run('Burgerlar','Бургеры','🍔',1);
-  ac.run('Pizzalar','Пиццы','🍕',2);
-  ac.run('Salatlar','Салаты','🥗',3);
-  ac.run('Ichimliklar','Напитки','🥤',4);
+  ac.run('Burger','Бургер','🍔',1);
+  ac.run('Lavash-Xaggi','Лаваш-Хагги','🌯',2);
+  ac.run('Hot-dog','Хот-дог','🌭',3);
+  ac.run('Kombo-setlar','Комбо-сеты','🍱',4);
+  ac.run('Sneklar','Снеки','🍟',5);
+  ac.run('Ichimliklar','Напитки','🥤',6);
 
   const ap = db.prepare('INSERT INTO products (category_id,name_uz,name_ru,desc_uz,desc_ru,price,image) VALUES (?,?,?,?,?,?,?)');
   ap.run(1,'Classic Burger','Классик Бургер',"Mol go'shti, salat, pomidor",'Говядина, салат, томат',35000,'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80');
   ap.run(1,'Double Burger','Двойной Бургер',"Ikki qatlam go'sht, pishloq",'Двойная говядина, сыр',55000,'https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=400&q=80');
   ap.run(1,'Chicken Burger','Чикен Бургер',"Tovuq go'shti, krem sous",'Курица, сливочный соус',40000,'https://images.unsplash.com/photo-1606755962773-d324e0a13086?w=400&q=80');
-  ap.run(2,'Margarita','Маргарита','Pomidor sousi, mozzarella','Томатный соус, моцарелла',55000,'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=400&q=80');
-  ap.run(2,'Pepperoni','Пепперони','Pepperoni, mozzarella','Пепперони, моцарелла',65000,'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=400&q=80');
-  ap.run(2,'BBQ Chicken','ББК Чикен','Tovuq, BBQ sous','Курица, соус BBQ',70000,'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&q=80');
-  ap.run(3,'Grek salat','Греческий салат','Pomidor, bodring, zaytun, feta','Томат, огурец, маслины, фета',30000,'https://images.unsplash.com/photo-1546793665-c74683f339c1?w=400&q=80');
-  ap.run(3,'Sezar','Цезарь','Tovuq, krutony, romaine','Курица, гренки, ромэн',35000,'https://images.unsplash.com/photo-1550304943-4f24f54ddde9?w=400&q=80');
-  ap.run(4,'Cola 0.5L','Кола 0.5Л','Sovuq','Холодная',10000,'https://images.unsplash.com/photo-1629203851122-3726ecdf080e?w=400&q=80');
-  ap.run(4,'Limonad','Лимонад','Yangi siqilgan','Свежевыжатый',15000,'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&q=80');
-  ap.run(4,'Ayron','Айран','Tabiiy, sovuq','Натуральный, холодный',8000,'https://images.unsplash.com/photo-1563227812-0ea4c22e6cc8?w=400&q=80');
+  ap.run(2,'Lavash','Лаваш',"Tovuq, sabzavotlar, sous",'Курица, овощи, соус',30000,'https://images.unsplash.com/photo-1626700051175-6818013e1d4f?w=400&q=80');
+  ap.run(2,'Xaggi','Хагги',"Mol go'shti, achchiq sous",'Говядина, острый соус',35000,'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=400&q=80');
+  ap.run(3,'Klassik Hot-dog','Классический Хот-дог','Sosiska, sous, piyoz','Сосиска, соус, лук',20000,'https://images.unsplash.com/photo-1612392062798-2dc1c6c5e1cb?w=400&q=80');
+  ap.run(3,'Cheese Hot-dog','Чиз Хот-дог','Sosiska, pishloq','Сосиска, сыр',25000,'https://images.unsplash.com/photo-1619740455993-9e612b1af08a?w=400&q=80');
+  ap.run(4,'Burger Combo','Бургер Комбо','Burger + Fri + Cola','Бургер + Фри + Кола',55000,'https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=400&q=80');
+  ap.run(4,'Lavash Combo','Лаваш Комбо','Lavash + Fri + Cola','Лаваш + Фри + Кола',50000,'https://images.unsplash.com/photo-1639024471283-03518883512d?w=400&q=80');
+  ap.run(5,'Fri kartoshka','Картошка фри','Tuzli, qovurilgan','Соленая, жареная',15000,'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=400&q=80');
+  ap.run(5,'Nuggets 6 ta','Наггетсы 6 шт','Tovuq nagets','Куриные наггетсы',20000,'https://images.unsplash.com/photo-1562967914-608f82629710?w=400&q=80');
+  ap.run(6,'Cola 0.5L','Кола 0.5Л','Sovuq','Холодная',10000,'https://images.unsplash.com/photo-1629203851122-3726ecdf080e?w=400&q=80');
+  ap.run(6,'Limonad','Лимонад','Yangi siqilgan','Свежевыжатый',15000,'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&q=80');
+  ap.run(6,'Ayron','Айран','Tabiiy, sovuq','Натуральный, холодный',8000,'https://images.unsplash.com/photo-1563227812-0ea4c22e6cc8?w=400&q=80');
 }
 
 module.exports = db;

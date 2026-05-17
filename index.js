@@ -11,12 +11,30 @@ const APP_URL = process.env.APP_URL || 'http://localhost:' + PORT;
 const ADMIN_IDS = (process.env.ADMIN_CHAT_ID || '').split(',').map(s=>s.trim()).filter(Boolean);
 const COURIER_IDS = (process.env.COURIER_IDS || '').split(',').map(s=>s.trim()).filter(Boolean);
 
+const RESTAURANT_LAT = parseFloat(process.env.RESTAURANT_LAT || '41.3588914');
+const RESTAURANT_LNG = parseFloat(process.env.RESTAURANT_LNG || '69.3366373');
+const RESTAURANT_ADDRESS = process.env.RESTAURANT_ADDRESS || "Yunusobod tumani, Gullola ko'chasi 13";
+const DELIVERY_RADIUS_KM = parseFloat(process.env.DELIVERY_RADIUS_KM || '7');
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-bot.start(ctx => {
+bot.start(async ctx => {
   const id = String(ctx.from.id);
   db.prepare('INSERT OR IGNORE INTO users (telegram_id,first_name,last_name,username) VALUES (?,?,?,?)').run(id, ctx.from.first_name, ctx.from.last_name||'', ctx.from.username||'');
+
+  // Clear any persistent reply keyboard from previous bot versions
+  await ctx.reply('Salom, '+ctx.from.first_name+'!', Markup.removeKeyboard()).catch(()=>{});
+
   if (ADMIN_IDS.includes(id)) {
     db.prepare("UPDATE users SET role='admin' WHERE telegram_id=?").run(id);
     return ctx.reply('Admin panelga xush kelibsiz!', Markup.inlineKeyboard([[Markup.button.webApp('Admin Panel', APP_URL+'/admin.html')]]));
@@ -25,8 +43,14 @@ bot.start(ctx => {
     db.prepare("UPDATE users SET role='courier' WHERE telegram_id=?").run(id);
     return ctx.reply('Kuryer paneliga xush kelibsiz!', Markup.inlineKeyboard([[Markup.button.webApp('Mening buyurtmalarim', APP_URL+'/courier.html')]]));
   }
-  ctx.reply('Salom, '+ctx.from.first_name+'! Buono Burger ga xush kelibsiz!\nBurger va pizzalarni tez yetkazib beramiz.\nIsh vaqti: 10:00-23:00',
-    Markup.inlineKeyboard([[Markup.button.webApp('Buyurtma berish', APP_URL+'/index.html')]]));
+  return ctx.reply(
+    'Buono Burger ga xush kelibsiz!\n'+
+    'Burger, lavash, hot-dog va boshqalarni tez yetkazib beramiz.\n'+
+    'Ish vaqti: 10:00-23:00\n'+
+    'Manzil: '+RESTAURANT_ADDRESS+'\n'+
+    'Yetkazib berish radiusi: '+DELIVERY_RADIUS_KM+' km',
+    Markup.inlineKeyboard([[Markup.button.webApp('Buyurtma berish', APP_URL+'/index.html')]])
+  );
 });
 
 function notifyAdmin(order) {
@@ -35,12 +59,13 @@ function notifyAdmin(order) {
   t += order.user_name+' | '+(order.user_phone||'-')+'\n';
   items.forEach(i => { t += i.name_uz+' x'+i.qty+' = '+(i.price*i.qty).toLocaleString()+" so'm\n"; });
   t += '\nJami: '+order.total.toLocaleString()+" so'm";
+  t += '\n'+(order.delivery_type==='pickup'?"O'zi olib ketadi":'Yetkazib berish');
   t += '\n'+(order.payment==='cash'?'Naqd':order.payment==='click'?'Click':'Payme');
   if (order.comment) t += '\nIzoh: '+order.comment;
   if (order.address) t += '\nManzil: '+order.address;
   ADMIN_IDS.forEach(id => {
     bot.telegram.sendMessage(id, t).catch(()=>{});
-    if (order.lat&&order.lng) bot.telegram.sendLocation(id, order.lat, order.lng).catch(()=>{});
+    if (order.delivery_type!=='pickup' && order.lat && order.lng) bot.telegram.sendLocation(id, order.lat, order.lng).catch(()=>{});
   });
 }
 
@@ -64,6 +89,15 @@ function getUser(req) {
   return tid ? db.prepare('SELECT * FROM users WHERE telegram_id=?').get(tid) : null;
 }
 
+app.get('/api/config', (req,res) => {
+  res.json({
+    restaurant_lat: RESTAURANT_LAT,
+    restaurant_lng: RESTAURANT_LNG,
+    restaurant_address: RESTAURANT_ADDRESS,
+    delivery_radius_km: DELIVERY_RADIUS_KM
+  });
+});
+
 app.get('/api/menu', (req,res) => {
   const cats = db.prepare('SELECT * FROM categories WHERE active=1 ORDER BY sort_order').all();
   const prods = db.prepare('SELECT * FROM products WHERE active=1').all();
@@ -80,8 +114,21 @@ app.post('/api/user', (req,res) => {
 });
 
 app.post('/api/orders', (req,res) => {
-  const {user_id,user_name,user_phone,items,total,address,lat,lng,comment,payment} = req.body;
-  const r = db.prepare('INSERT INTO orders (user_id,user_name,user_phone,items,total,address,lat,lng,comment,payment) VALUES (?,?,?,?,?,?,?,?,?,?)').run(user_id,user_name,user_phone,JSON.stringify(items),total,address,lat,lng,comment,payment);
+  const {user_id,user_name,user_phone,items,total,address,lat,lng,comment,payment,delivery_type} = req.body;
+  const dt = delivery_type==='pickup' ? 'pickup' : 'delivery';
+  if (dt === 'delivery') {
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      return res.status(400).json({error:'Joylashuvni yuboring yoki o\'zi olib ketishni tanlang'});
+    }
+    const distance = haversineKm(RESTAURANT_LAT, RESTAURANT_LNG, lat, lng);
+    if (distance > DELIVERY_RADIUS_KM) {
+      return res.status(400).json({error:'Manzilingiz '+distance.toFixed(1)+' km uzoqlikda. Bizning yetkazib berish radiusimiz '+DELIVERY_RADIUS_KM+' km'});
+    }
+  }
+  const finalAddress = dt==='pickup' ? RESTAURANT_ADDRESS : address;
+  const finalLat = dt==='pickup' ? RESTAURANT_LAT : lat;
+  const finalLng = dt==='pickup' ? RESTAURANT_LNG : lng;
+  const r = db.prepare('INSERT INTO orders (user_id,user_name,user_phone,items,total,address,lat,lng,comment,payment,delivery_type) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(user_id,user_name,user_phone,JSON.stringify(items),total,finalAddress,finalLat,finalLng,comment,payment,dt);
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(r.lastInsertRowid);
   notifyAdmin(order);
   res.json({ok:true, order_id:r.lastInsertRowid});
@@ -162,7 +209,23 @@ app.get('/api/admin/stats', (req,res) => {
     on_way: db.prepare("SELECT COUNT(*) as c FROM orders WHERE status='on_way'").get().c,
     delivered: db.prepare("SELECT COUNT(*) as c FROM orders WHERE status='delivered'").get().c,
     today_total: db.prepare("SELECT COALESCE(SUM(total),0) as s FROM orders WHERE date(created_at)=date('now') AND status='delivered'").get().s,
+    users_count: db.prepare("SELECT COUNT(*) as c FROM users WHERE role='customer'").get().c,
   });
+});
+
+app.post('/api/admin/broadcast', async (req,res) => {
+  const u = getUser(req);
+  if (!u||u.role!=='admin') return res.status(403).json({error:'Forbidden'});
+  const {message} = req.body;
+  if (!message || !message.trim()) return res.status(400).json({error:"Xabar bo'sh"});
+  const users = db.prepare("SELECT telegram_id FROM users WHERE role='customer'").all();
+  let sent = 0, failed = 0;
+  for (const uu of users) {
+    try { await bot.telegram.sendMessage(uu.telegram_id, message); sent++; }
+    catch(e) { failed++; }
+    await new Promise(r => setTimeout(r, 35));
+  }
+  res.json({ok:true, sent, failed, total: users.length});
 });
 
 app.get('/api/courier/orders', (req,res) => {

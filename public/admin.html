@@ -76,6 +76,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;
     <button class="nb" id="nb-map" onclick="go('map')">&#128506; Xarita</button>
     <button class="nb" id="nb-menu" onclick="go('menu')">&#127828; Menyu</button>
     <button class="nb" id="nb-add" onclick="go('add')">&#10133; Qo'shish</button>
+    <button class="nb" id="nb-broadcast" onclick="go('broadcast')">&#128227; Xabar yuborish</button>
   </nav>
   <div class="uid" id="uid-info">yuklanmoqda...</div>
 </aside>
@@ -95,8 +96,8 @@ var UID=new URLSearchParams(location.search).get('uid')||(tg&&tg.initDataUnsafe&
 var H={'Content-Type':'application/json','x-telegram-id':UID};
 document.getElementById('uid-info').textContent=UID?'ID: '+UID:'UID topilmadi!';
 
-var orders=[],couriers=[],prods=[],fmap=null,cFilt='all',editId=null,curPage='dash';
-var PAGES=['dash','orders','map','menu','add'];
+var orders=[],couriers=[],prods=[],cats=[],fmap=null,cFilt='all',editId=null,curPage='dash';
+var PAGES=['dash','orders','map','menu','add','broadcast'];
 var SL={new:'Yangi',accepted:'Qabul',cooking:'Tayyorlanmoqda',on_way:"Yo'lda",delivered:'Yetkazildi',cancelled:'Bekor'};
 var SC={new:'s-new',accepted:'s-accepted',cooking:'s-cooking',on_way:'s-on_way',delivered:'s-delivered',cancelled:'s-cancelled'};
 var PL={cash:'Naqd',click:'Click',payme:'Payme'};
@@ -119,6 +120,11 @@ function go(name){
   else if(name==='map')pageMap(m);
   else if(name==='menu')pageMenu(m);
   else if(name==='add')pageAdd(m);
+  else if(name==='broadcast')pageBroadcast(m);
+}
+
+function loadCats(cb){
+  fetch('/api/menu').then(r=>r.json()).then(data=>{cats=data||[];if(cb)cb();}).catch(()=>{if(cb)cb();});
 }
 
 // ---------- PAGES (string concat only) ----------
@@ -167,36 +173,64 @@ function pageMenu(m){
 
 function pageAdd(m){
   var p=editId?prods.filter(function(x){return x.id===editId;})[0]:null;
-  m.innerHTML=
-    '<div class="ph"><h1>'+(editId?'Tahrirlash':'Yangi ovqat')+'</h1></div>'+
-    '<div class="form">'+
-      '<input type="hidden" id="eid" value="'+(editId||'')+'">'+
-      '<div class="g2">'+
-        '<div class="fg"><label>Nomi (O\'zbek)</label><input class="fi" id="fuz" value="'+(p?p.name_uz:'')+'" placeholder="Classic Burger"></div>'+
-        '<div class="fg"><label>Nomi (Rus)</label><input class="fi" id="fru" value="'+(p?p.name_ru:'')+'" placeholder="Klassik Burger"></div>'+
-      '</div>'+
-      '<div class="g2">'+
-        '<div class="fg"><label>Tavsif (O\'zbek)</label><input class="fi" id="fduz" value="'+(p?p.desc_uz:'')+'" placeholder="Mol goshti..."></div>'+
-        '<div class="fg"><label>Tavsif (Rus)</label><input class="fi" id="fdru" value="'+(p?p.desc_ru:'')+'" placeholder="Govyadina..."></div>'+
-      '</div>'+
-      '<div class="g2">'+
-        '<div class="fg"><label>Narx (som)</label><input class="fi" id="fprice" type="number" value="'+(p?p.price:'')+'" placeholder="35000"></div>'+
-        '<div class="fg"><label>Kategoriya</label>'+
-          '<select class="fi" id="fcat">'+
-            '<option value="1"'+((!p||p.category_id==1)?' selected':'')+'>Burgerlar</option>'+
-            '<option value="2"'+((p&&p.category_id==2)?' selected':'')+'>Pizzalar</option>'+
-            '<option value="3"'+((p&&p.category_id==3)?' selected':'')+'>Salatlar</option>'+
-            '<option value="4"'+((p&&p.category_id==4)?' selected':'')+'>Ichimliklar</option>'+
-          '</select>'+
+  function renderForm(){
+    var catOpts=cats.length?cats.map(function(c){
+      var sel=((!p&&c.id===cats[0].id)||(p&&p.category_id==c.id))?' selected':'';
+      return '<option value="'+c.id+'"'+sel+'>'+(c.emoji||'')+' '+c.name_uz+'</option>';
+    }).join(''):'<option value="1">Burger</option>';
+    m.innerHTML=
+      '<div class="ph"><h1>'+(editId?'Tahrirlash':'Yangi ovqat')+'</h1></div>'+
+      '<div class="form">'+
+        '<input type="hidden" id="eid" value="'+(editId||'')+'">'+
+        '<div class="g2">'+
+          '<div class="fg"><label>Nomi (O\'zbek)</label><input class="fi" id="fuz" value="'+(p?p.name_uz:'')+'" placeholder="Classic Burger"></div>'+
+          '<div class="fg"><label>Nomi (Rus)</label><input class="fi" id="fru" value="'+(p?p.name_ru:'')+'" placeholder="Klassik Burger"></div>'+
         '</div>'+
+        '<div class="g2">'+
+          '<div class="fg"><label>Tavsif (O\'zbek)</label><input class="fi" id="fduz" value="'+(p?p.desc_uz:'')+'" placeholder="Mol goshti..."></div>'+
+          '<div class="fg"><label>Tavsif (Rus)</label><input class="fi" id="fdru" value="'+(p?p.desc_ru:'')+'" placeholder="Govyadina..."></div>'+
+        '</div>'+
+        '<div class="g2">'+
+          '<div class="fg"><label>Narx (som)</label><input class="fi" id="fprice" type="number" value="'+(p?p.price:'')+'" placeholder="35000"></div>'+
+          '<div class="fg"><label>Kategoriya</label>'+
+            '<select class="fi" id="fcat">'+catOpts+'</select>'+
+          '</div>'+
+        '</div>'+
+        '<div class="fg"><label>Rasm URL (Unsplash va boshqa)</label><input class="fi" id="fimg" value="'+(p?p.image:'')+'" placeholder="https://images.unsplash.com/...?w=400" oninput="prevImg(this.value)"></div>'+
+        '<div id="pv" style="margin-top:6px">'+(p&&p.image?'<img src="'+p.image+'" style="height:65px;border-radius:8px">':'')+'</div>'+
+        '<div style="margin-top:12px">'+
+          '<button class="sbtn" onclick="saveProd()">Saqlash</button>'+
+          '<button class="gbtn" onclick="editId=null;go(\'add\')">Tozalash</button>'+
+        '</div>'+
+      '</div>';
+  }
+  if(!cats.length)loadCats(renderForm);else renderForm();
+}
+
+function pageBroadcast(m){
+  m.innerHTML=
+    '<div class="ph"><h1>&#128227; Foydalanuvchilarga xabar yuborish</h1></div>'+
+    '<div class="form">'+
+      '<div class="fg"><label>Xabar matni</label>'+
+        '<textarea class="fi" id="bcastMsg" rows="6" style="resize:vertical;min-height:120px" placeholder="Salom! Bugun chegirmalar..."></textarea>'+
       '</div>'+
-      '<div class="fg"><label>Rasm URL (Unsplash va boshqa)</label><input class="fi" id="fimg" value="'+(p?p.image:'')+'" placeholder="https://images.unsplash.com/...?w=400" oninput="prevImg(this.value)"></div>'+
-      '<div id="pv" style="margin-top:6px">'+(p&&p.image?'<img src="'+p.image+'" style="height:65px;border-radius:8px">':'')+'</div>'+
-      '<div style="margin-top:12px">'+
-        '<button class="sbtn" onclick="saveProd()">Saqlash</button>'+
-        '<button class="gbtn" onclick="editId=null;go(\'add\')">Tozalash</button>'+
-      '</div>'+
+      '<div style="font-size:11px;color:#64748b;margin-bottom:10px">Xabar barcha botga /start bosgan mijozlarga yuboriladi.</div>'+
+      '<button class="sbtn" id="bcastBtn" onclick="sendBroadcast()">Yuborish</button>'+
+      '<div id="bcastResult" style="margin-top:12px;font-size:12px"></div>'+
     '</div>';
+}
+
+function sendBroadcast(){
+  var msg=(el('bcastMsg')&&el('bcastMsg').value||'').trim();
+  if(!msg){alert('Xabar yozing');return;}
+  if(!confirm('Xabar barcha foydalanuvchilarga yuboriladi. Davom etilsinmi?'))return;
+  var btn=el('bcastBtn'),r=el('bcastResult');
+  btn.disabled=true;btn.textContent='Yuborilmoqda...';r.textContent='';
+  apiFetch('/api/admin/broadcast',{method:'POST',headers:H,body:JSON.stringify({message:msg})},function(err,data){
+    btn.disabled=false;btn.textContent='Yuborish';
+    if(err){r.style.color='#e63946';r.textContent='Xatolik: '+err.message;}
+    else{r.style.color='#16a34a';r.textContent='Yuborildi: '+data.sent+'/'+data.total+(data.failed?' (xatoliklar: '+data.failed+')':'');el('bcastMsg').value='';}
+  });
 }
 
 // ---------- API ----------
