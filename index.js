@@ -25,7 +25,7 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-app.use(express.json());
+app.use(express.json({limit:'5mb'}));
 app.use(express.static(path.join(__dirname, 'public')));
 
 bot.start(async ctx => {

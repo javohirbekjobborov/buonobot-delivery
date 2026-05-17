@@ -196,8 +196,12 @@ function pageAdd(m){
             '<select class="fi" id="fcat">'+catOpts+'</select>'+
           '</div>'+
         '</div>'+
-        '<div class="fg"><label>Rasm URL (Unsplash va boshqa)</label><input class="fi" id="fimg" value="'+(p?p.image:'')+'" placeholder="https://images.unsplash.com/...?w=400" oninput="prevImg(this.value)"></div>'+
-        '<div id="pv" style="margin-top:6px">'+(p&&p.image?'<img src="'+p.image+'" style="height:65px;border-radius:8px">':'')+'</div>'+
+        '<div class="fg"><label>Rasm</label>'+
+          '<input type="file" accept="image/*" id="fimgFile" onchange="handleImgFile(this)" style="margin-bottom:6px;font-size:12px">'+
+          '<input class="fi" id="fimg" value="'+(p?(p.image||'').replace(/"/g,"&quot;"):'')+'" placeholder="yoki URL kiriting" oninput="prevImg(this.value)">'+
+          '<div style="font-size:10px;color:#64748b;margin-top:3px">Telefondan rasm tanlasangiz avtomatik kichiklashtiriladi (max 800px, JPEG)</div>'+
+        '</div>'+
+        '<div id="pv" style="margin-top:6px">'+(p&&p.image?'<img src="'+p.image+'" style="height:80px;border-radius:8px">':'')+'</div>'+
         '<div style="margin-top:12px">'+
           '<button class="sbtn" onclick="saveProd()">Saqlash</button>'+
           '<button class="gbtn" onclick="editId=null;go(\'add\')">Tozalash</button>'+
@@ -333,7 +337,33 @@ function editProd(id){editId=id;go('add');}
 
 function prevImg(url){
   var pv=el('pv');
-  if(pv)pv.innerHTML=url?'<img src="'+url+'" style="height:65px;border-radius:8px;margin-top:4px" onerror="this.style.display=\'none\'">':'';
+  if(pv)pv.innerHTML=url?'<img src="'+url+'" style="height:80px;border-radius:8px;margin-top:4px" onerror="this.style.display=\'none\'">':'';
+}
+
+function handleImgFile(input){
+  var file=input.files&&input.files[0];
+  if(!file)return;
+  if(file.size>15*1024*1024){alert('Rasm juda katta (max 15MB)');input.value='';return;}
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var img=new Image();
+    img.onload=function(){
+      var maxDim=800;
+      var w=img.width,h=img.height;
+      if(w>h&&w>maxDim){h=Math.round(h*maxDim/w);w=maxDim;}
+      else if(h>=w&&h>maxDim){w=Math.round(w*maxDim/h);h=maxDim;}
+      var canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      var dataUrl=canvas.toDataURL('image/jpeg',0.85);
+      var fimg=el('fimg');
+      if(fimg){fimg.value=dataUrl;prevImg(dataUrl);}
+    };
+    img.onerror=function(){alert('Rasm formati noto\'g\'ri');};
+    img.src=e.target.result;
+  };
+  reader.onerror=function(){alert('Faylni o\'qib bo\'lmadi');};
+  reader.readAsDataURL(file);
 }
 
 function saveProd(){
