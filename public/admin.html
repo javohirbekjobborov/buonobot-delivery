@@ -65,7 +65,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .sbtn{background:#e63946;color:#fff;border:none;padding:9px 18px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer}
 .gbtn{background:#64748b;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;margin-left:7px}
-.empty{text-align:center;padding:22px;color:#64748b;font-size:12py}
+.empty{text-align:center;padding:22px;color:#64748b;font-size:12px}
 </style></head>
 <body>
 <aside class="sidebar">
@@ -99,7 +99,7 @@ var orders=[],couriers=[],prods=[],fmap=null,cFilt='all',editId=null,curPage='da
 var PAGES=['dash','orders','map','menu','add'];
 var SL={new:'Yangi',accepted:'Qabul',cooking:'Tayyorlanmoqda',on_way:"Yo'lda",delivered:'Yetkazildi',cancelled:'Bekor'};
 var SC={new:'s-new',accepted:'s-accepted',cooking:'s-cooking',on_way:'s-on_way',delivered:'s-delivered',cancelled:'s-cancelled'};
-var PL={cash:'Naqd',click;'Click',payme:'Payme'};
+var PL={cash:'Naqd',click:'Click',payme:'Payme'};
 
 function el(id){return document.getElementById(id);}
 function qs(sel){return document.querySelector(sel);}
@@ -176,8 +176,8 @@ function pageAdd(m){
         '<div class="fg"><label>Nomi (Rus)</label><input class="fi" id="fru" value="'+(p?p.name_ru:'')+'" placeholder="Klassik Burger"></div>'+
       '</div>'+
       '<div class="g2">'+
-        '<div class="fg"><label>Tavsif (O\'zbek)</label><input class="fi" id="fduz" value="'+(p?p.desc_uz:'p')+'" placeholder="Mol goshti..."></div>'+
-        '<div class="fg"><label>Tavsif (Rus)</label><input class="fi" id="fdru" value="'+(p?p.desc_ru:'p')+'" placeholder="Govyadina..."></div>'+
+        '<div class="fg"><label>Tavsif (O\'zbek)</label><input class="fi" id="fduz" value="'+(p?p.desc_uz:'')+'" placeholder="Mol goshti..."></div>'+
+        '<div class="fg"><label>Tavsif (Rus)</label><input class="fi" id="fdru" value="'+(p?p.desc_ru:'')+'" placeholder="Govyadina..."></div>'+
       '</div>'+
       '<div class="g2">'+
         '<div class="fg"><label>Narx (som)</label><input class="fi" id="fprice" type="number" value="'+(p?p.price:'')+'" placeholder="35000"></div>'+
@@ -276,7 +276,7 @@ function loadProds(){
   apiFetch('/api/admin/products',null,function(err,data){
     if(err){ptb.innerHTML='<div class="empty">Xatolik: '+err.message+'</div>';return;}
     prods=data;
-    ptb.innerHTML=pyods.length?prods.map(function(p){
+    ptb.innerHTML=prods.length?prods.map(function(p){
       return '<div class="pr">'+
         '<img class="pimg" src="'+(p.image||'')+'" onerror="this.src=\'https://via.placeholder.com/40\'">'+
         '<div style="flex:1"><div class="pn">'+p.name_uz+' / '+p.name_ru+'</div>'+
