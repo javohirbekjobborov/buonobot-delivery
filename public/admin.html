@@ -7,15 +7,15 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;display:flex;min-height:100vh;min-height:100svh}
-.sidebar{width:170px;background:#1a1a2e;color:#fff;position:fixed;top:0;left:0;height:100%;height:100svh;z-index:100;display:flex;flex-direction:column}
-.logo{padding:12px 14px;font-size:14px;font-weight:800;color:#e63946;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;display:flex;min-height:100vh}
+.sidebar{width:170px;background:#1a1a2e;color:#fff;position:fixed;top:0;left:0;height:100vh;z-index:100;display:flex;flex-direction:column}
+.logo{padding:12px 14px;font-size:14px;font-weight:800;color:#e63946;border-bottom:1px solid rgba(255,255,255,.1)}
 .nav{flex:1;padding:6px;overflow-y:auto}
-.nb{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:8px;color:rgba(255,255,255,.75);cursor:pointer;font-size:13px;font-weight:500;margin-bottom:2px;border:none;background:none;width:100%;text-align:left}
+.nb{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:8px;color:rgba(255,255,255,.7);cursor:pointer;font-size:13px;font-weight:500;margin-bottom:2px;border:none;background:none;width:100%;text-align:left}
 .nb:hover,.nb.on{background:rgba(255,255,255,.12);color:#fff}
 .bdg{background:#e63946;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:auto}
-.uid{padding:8px 14px;font-size:10px;color:rgba(255,255,255,.3);flex-shrink:0;border-top:1px solid rgba(255,255,255,.07)}
-.main{margin-left:170px;flex:1;padding:14px;overflow-y:auto;max-height:100svh}
+.uid{padding:8px 14px;font-size:10px;color:rgba(255,255,255,.3);border-top:1px solid rgba(255,255,255,.07)}
+.main{margin-left:170px;flex:1;padding:14px;overflow-y:auto}
 .ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .ph h1{font-size:17px;font-weight:800}
 .rbtn{background:#fff;border:1px solid #e2e8f0;padding:5px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}
@@ -30,12 +30,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;
 .tr{display:grid;grid-template-columns:46px 1fr 95px 80px 105px 75px;gap:8px;padding:9px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:12px;align-items:center}
 .tr:hover{background:#f8fafc}.tr:last-child{border:none}
 .on2{font-weight:800;color:#e63946}
-.sp{padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.sp{padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700}
 .s-new{background:#fef3c7;color:#92400e}.s-accepted{background:#dbeafe;color:#1e40af}
 .s-cooking{background:#fce7f3;color:#9d174d}.s-on_way{background:#d1fae5;color:#065f46}
-.s-delivered{background:#f0fdf4;color:#166534}.s-cancelled{background:#fee2e2;color:#991b1b}
+.s-delivered{background:#f0fdf4;color:#166534}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:12px}
-.om{background:#fff;border-radius:12px;width:100%;max-width:520px;max-height:90vh;max-height:90svh;overflow-y:auto}
+.om{background:#fff;border-radius:12px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
 .oh{padding:13px 16px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
 .ot{font-size:14px;font-weight:800}.xb{background:none;border:none;font-size:20px;cursor:pointer;color:#64748b}
 .ob{padding:13px 16px}
@@ -48,7 +48,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;
 .ss,.cs{width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none;margin-top:3px}
 .ab{width:100%;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:700;cursor:pointer;margin-top:7px}
 .ab-p{background:#1a1a2e;color:#fff}.ab-g{background:#22c55e;color:#fff}
-#fullMap{height:calc(100svh - 110px);border-radius:9px}
+#fullMap{height:calc(100vh - 110px);border-radius:9px}
 .ptb{background:#fff;border-radius:9px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
 .pr{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1px solid #f1f5f9}
 .pr:last-child{border:none}
@@ -65,302 +65,340 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .sbtn{background:#e63946;color:#fff;border:none;padding:9px 18px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer}
 .gbtn{background:#64748b;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;margin-left:7px}
-.empty{text-align:center;padding:22px;color:#64748b;font-size:12px}
-.err{background:#fee2e2;color:#991b1b;padding:9px 12px;border-radius:8px;margin-bottom:10px;font-size:12px;font-weight:600}
+.empty{text-align:center;padding:22px;color:#64748b;font-size:12py}
 </style></head>
 <body>
 <aside class="sidebar">
-  <div class="logo">🍔 Buono Admin</div>
+  <div class="logo">&#127828; Buono Admin</div>
   <nav class="nav">
-    <button class="nb on" id="nb-dash" onclick="go('dash')">📊 Dashboard</button>
-    <button class="nb" id="nb-orders" onclick="go('orders')">📋 Buyurtmalar <span class="bdg" id="badge">0</span></button>
-    <button class="nb" id="nb-map" onclick="go('map')">🗺 Xarita</button>
-    <button class="nb" id="nb-menu" onclick="go('menu')">🍔 Menyu</button>
-    <button class="nb" id="nb-add" onclick="go('add')">➕ Qo'shish</button>
+    <button class="nb on" id="nb-dash" onclick="go('dash')">&#128202; Dashboard</button>
+    <button class="nb" id="nb-orders" onclick="go('orders')">&#128203; Buyurtmalar <span class="bdg" id="badge">0</span></button>
+    <button class="nb" id="nb-map" onclick="go('map')">&#128506; Xarita</button>
+    <button class="nb" id="nb-menu" onclick="go('menu')">&#127828; Menyu</button>
+    <button class="nb" id="nb-add" onclick="go('add')">&#10133; Qo'shish</button>
   </nav>
-  <div class="uid" id="uid-info"></div>
+  <div class="uid" id="uid-info">yuklanmoqda...</div>
 </aside>
-<main class="main" id="main-content"></main>
+<main class="main" id="MC"></main>
 
 <div class="ov" id="modal" style="display:none">
   <div class="om">
-    <div class="oh"><span class="ot" id="mtitle">Buyurtma</span><button class="xb" onclick="closeM()">✕</button></div>
-    <div class="ob" id="mbody"></div>
+    <div class="oh"><span class="ot" id="MT">Buyurtma</span><button class="xb" onclick="closeM()">&#10005;</button></div>
+    <div class="ob" id="MB"></div>
   </div>
 </div>
 
 <script>
-const tg = window.Telegram?.WebApp;
-if (tg) { tg.expand(); }
-const UID = new URLSearchParams(location.search).get('uid') || (tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : '');
-const H = {'Content-Type':'application/json','x-telegram-id':UID};
-document.getElementById('uid-info').textContent = UID ? 'ID: '+UID : 'UID topilmadi!';
+var tg=window.Telegram&&window.Telegram.WebApp;
+if(tg)tg.expand();
+var UID=new URLSearchParams(location.search).get('uid')||(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user?String(tg.initDataUnsafe.user.id):'');
+var H={'Content-Type':'application/json','x-telegram-id':UID};
+document.getElementById('uid-info').textContent=UID?'ID: '+UID:'UID topilmadi!';
 
-let orders=[], couriers=[], prods=[], fmap=null, cFilt='all', curPage='dash', editId=null;
-const PAGES = ['dash','orders','map','menu','add'];
-const SL = {new:'Yangi',accepted:'Qabul',cooking:'Tayyorlanmoqda',on_way:"Yo'lda",delivered:'Yetkazildi',cancelled:'Bekor'};
-const SC = {new:'s-new',accepted:'s-accepted',cooking:'s-cooking',on_way:'s-on_way',delivered:'s-delivered',cancelled:'s-cancelled'};
-const PL = {cash:'Naqd',click:'Click',payme:'Payme'};
+var orders=[],couriers=[],prods=[],fmap=null,cFilt='all',editId=null,curPage='dash';
+var PAGES=['dash','orders','map','menu','add'];
+var SL={new:'Yangi',accepted:'Qabul',cooking:'Tayyorlanmoqda',on_way:"Yo'lda",delivered:'Yetkazildi',cancelled:'Bekor'};
+var SC={new:'s-new',accepted:'s-accepted',cooking:'s-cooking',on_way:'s-on_way',delivered:'s-delivered',cancelled:'s-cancelled'};
+var PL={cash:'Naqd',click;'Click',payme:'Payme'};
 
-// ── NAVIGATION via innerHTML replacement ─────────────────────────────────────
-function go(name) {
-  curPage = name;
-  PAGES.forEach(n => { const b = document.getElementById('nb-'+n); if(b) b.classList.toggle('on', n===name); });
-  const m = document.getElementById('main-content');
-  m.innerHTML = '';
-  if(name === 'dash') renderDashPage(m);
-  else if(name === 'orders') renderOrdersPage(m);
-  else if(name === 'map') renderMapPage(m);
-  else if(name === 'menu') renderMenuPage(m);
-  else if(name === 'add') renderAddPage(m);
+function el(id){return document.getElementById(id);}
+function qs(sel){return document.querySelector(sel);}
+function qsa(sel){return document.querySelectorAll(sel);}
+
+// Nav toggle
+function go(name){
+  curPage=name;
+  PAGES.forEach(function(n){
+    var b=el('nb-'+n);
+    if(b){b.className=b.className.replace(' on','');if(n===name)b.className+=' on';}
+  });
+  var m=el('MC');
+  m.innerHTML='';
+  if(name==='dash')pageDash(m);
+  else if(name==='orders')pageOrders(m);
+  else if(name==='map')pageMap(m);
+  else if(name==='menu')pageMenu(m);
+  else if(name==='add')pageAdd(m);
 }
 
-// ── PAGES ─────────────────────────────────────────────────────────────────────
-function renderDashPage(m) {
-  m.innerHTML = `<div class="ph"><h1>📊 Dashboard</h1><button class="rbtn" onclick="loadAll()">🔄 Yangilash</button></div>
-<div class="stats">
-  <div class="sc"><div class="sl">🆕 Yangi</div><div class="sv" id="sn" style="color:#f59e0b">0</div></div>
-  <div class="sc"><div class="sl">👨‍🍳 Tayyor</div><div class="sv" id="sc2" style="color:#8b5cf6">0</div></div>
-  <div class="sc"><div class="sl">🛵 Yo'lda</div><div class="sv" id="sw" style="color:#3b82f6">0</div></div>
-  <div class="sc"><div class="sl">✅ Bugun</div><div class="sv" id="sd" style="color:#22c55e">0</div></div>
-  <div class="sc"><div class="sl">💰 Daromad</div><div class="sv" id="sr" style="color:#e63946">0</div></div>
-  <div class="sc"><div class="sl">📦 Jami</div><div class="sv" id="sa">0</div></div>
-</div>
-<div class="ph"><h2 style="font-size:14px;font-weight:700">⚡ Yangi buyurtmalar</h2></div>
-<div class="tbl"><div class="th"><span>#</span><span>Mijoz</span><span>Jami</span><span>To'lov</span><span>Status</span><span>Vaqt</span></div><div id="dnew"><div class="empty">Yuklanmoqda...</div></div></div>`;
+// ---------- PAGES (string concat only) ----------
+function pageDash(m){
+  m.innerHTML=
+    '<div class="ph"><h1>&#128202; Dashboard</h1><button class="rbtn" onclick="loadAll()">&#128260; Yangilash</button></div>'+
+    '<div class="stats">'+
+      '<div class="sc"><div class="sl">&#128228; Yangi</div><div class="sv" id="sn" style="color:#f59e0b">-</div></div>'+
+      '<div class="sc"><div class="sl">&#128104;&#8205;&#127859; Tayyorlanmoqda</div><div class="sv" id="sc2" style="color:#8b5cf6">-</div></div>'+
+      '<div class="sc"><div class="sl">&#128757; Yolda</div><div class="sv" id="sw" style="color:#3b82f6">-</div></div>'+
+      '<div class="sc"><div class="sl">&#9989; Bugun yetkazildi</div><div class="sv" id="sd" style="color:#22c55e">-</div></div>'+
+      '<div class="sc"><div class="sl">&#128176; Bugungi daromad</div><div class="sv" id="sr" style="color:#e63946">-</div></div>'+
+      '<div class="sc"><div class="sl">&#128230; Jami</div><div class="sv" id="sa">-</div></div>'+
+    '</div>'+
+    '<div class="ph"><h2 style="font-size:14px;font-weight:700">&#9889; Yangi buyurtmalar</h2></div>'+
+    '<div class="tbl"><div class="th"><span>#</span><span>Mijoz</span><span>Jami</span><span>Tolov</span><span>Status</span><span>Vaqt</span></div>'+
+    '<div id="dnew"><div class="empty">Yuklanmoqda...</div></div></div>';
   loadAll();
 }
 
-function renderOrdersPage(m) {
-  m.innerHTML = `<div class="ph"><h1>📋 Buyurtmalar</h1><button class="rbtn" onclick="reloadOrders()">🔄</button></div>
-<div class="fbox">
-  <button class="fb on" onclick="filt('all',this)">Barchasi</button>
-  <button class="fb" onclick="filt('new',this)">🆕 Yangi</button>
-  <button class="fb" onclick="filt('accepted',this)">✅ Qabul</button>
-  <button class="fb" onclick="filt('cooking',this)">👨‍🍳 Tayyor</button>
-  <button class="fb" onclick="filt('on_way',this)">🛵 Yo'lda</button>
-  <button class="fb" onclick="filt('delivered',this)">🎉 Yetkazildi</button>
-</div>
-<div class="tbl"><div class="th"><span>#</span><span>Mijoz</span><span>Jami</span><span>To'lov</span><span>Status</span><span>Vaqt</span></div><div id="obody"><div class="empty">Yuklanmoqda...</div></div></div>`;
+function pageOrders(m){
+  m.innerHTML=
+    '<div class="ph"><h1>&#128203; Buyurtmalar</h1><button class="rbtn" onclick="reloadOrders()">&#128260;</button></div>'+
+    '<div class="fbox">'+
+      '<button class="fb on" onclick="filt(\'all\',this)">Barchasi</button>'+
+      '<button class="fb" onclick="filt(\'new\',this)">Yangi</button>'+
+      '<button class="fb" onclick="filt(\'accepted\',this)">Qabul</button>'+
+      '<button class="fb" onclick="filt(\'cooking\',this)">Tayyorlanmoqda</button>'+
+      '<button class="fb" onclick="filt(\'on_way\',this)">Yolda</button>'+
+      '<button class="fb" onclick="filt(\'delivered\',this)">Yetkazildi</button>'+
+    '</div>'+
+    '<div class="tbl"><div class="th"><span>#</span><span>Mijoz</span><span>Jami</span><span>Tolov</span><span>Status</span><span>Vaqt</span></div>'+
+    '<div id="obody"><div class="empty">Yuklanmoqda...</div></div></div>';
   reloadOrders();
 }
 
-function renderMapPage(m) {
-  m.innerHTML = `<div class="ph"><h1>🗺 Xarita</h1><button class="rbtn" onclick="buildMap()">🔄</button></div><div id="fullMap"></div>`;
-  setTimeout(buildMap, 200);
+function pageMap(m){
+  m.innerHTML='<div class="ph"><h1>&#128506; Xarita</h1><button class="rbtn" onclick="buildMap()">&#128260;</button></div><div id="fullMap"></div>';
+  setTimeout(buildMap,200);
 }
 
-function renderMenuPage(m) {
-  m.innerHTML = `<div class="ph"><h1>🍔 Menyu boshqaruvi</h1><button class="rbtn" onclick="loadProds()">🔄</button></div><div class="ptb" id="ptb"><div class="empty">Yuklanmoqda...</div></div>`;
+function pageMenu(m){
+  m.innerHTML='<div class="ph"><h1>&#127828; Menyu</h1><button class="rbtn" onclick="loadProds()">&#128260;</button></div><div class="ptb" id="ptb"><div class="empty">Yuklanmoqda...</div></div>';
   loadProds();
 }
 
-function renderAddPage(m) {
-  const id = editId ? prods.find(p=>p.id===editId) : null;
-  m.innerHTML = `<div class="ph"><h1>${editId?'✏️ Tahrirlash':'➕ Yangi ovqat'}</h1></div>
-<div class="form">
-  <input type="hidden" id="eid" value="${editId||''}">
-  <div class="g2">
-    <div class="fg"><label>Nomi (O'zbek)</label><input class="fi" id="fuz" value="${id?id.name_uz:''}" placeholder="Classic Burger"></div>
-    <div class="fg"><label>Nomi (Rus)</label><input class="fi" id="fru" value="${id?id.name_ru:''}" placeholder="Классик Бургер"></div>
-  </div>
-  <div class="g2">
-    <div class="fg"><label>Tavsif (O'zbek)</label><input class="fi" id="fduz" value="${id?id.desc_uz:''}" placeholder="Mol go'shti..."></div>
-    <div class="fg"><label>Tavsif (Rus)</label><input class="fi" id="fdru" value="${id?id.desc_ru:''}" placeholder="Говядина..."></div>
-  </div>
-  <div class="g2">
-    <div class="fg"><label>Narx (so'm)</label><input class="fi" id="fprice" type="number" value="${id?id.price:''}" placeholder="35000"></div>
-    <div class="fg"><label>Kategoriya</label>
-      <select class="fi" id="fcat">
-        <option value="1" ${(!id||id.category_id==1)?'selected':''}>🍔 Burgerlar</option>
-        <option value="2" ${id&&id.category_id==2?'selected':''}>🍕 Pizzalar</option>
-        <option value="3" ${id&&id.category_id==3?'selected':''}>🥗 Salatlar</option>
-        <option value="4" ${id&&id.category_id==4?'selected':''}>🥤 Ichimliklar</option>
-      </select>
-    </div>
-  </div>
-  <div class="fg"><label>Rasm URL (Unsplash)</label><input class="fi" id="fimg" value="${id?id.image:''}" placeholder="https://images.unsplash.com/...?w=400&q=80" oninput="prevImg(this.value)"></div>
-  <div id="pv" style="margin-top:6px">${id&&id.image?'<img src="'+id.image+'" style="height:65px;border-radius:8px">':''}</div>
-  <div style="margin-top:12px">
-    <button class="sbtn" onclick="saveProd()">💾 Saqlash</button>
-    <button class="gbtn" onclick="editId=null;go('add')">🗑 Tozalash</button>
-  </div>
-</div>`;
+function pageAdd(m){
+  var p=editId?prods.filter(function(x){return x.id===editId;})[0]:null;
+  m.innerHTML=
+    '<div class="ph"><h1>'+(editId?'Tahrirlash':'Yangi ovqat')+'</h1></div>'+
+    '<div class="form">'+
+      '<input type="hidden" id="eid" value="'+(editId||'')+'">'+
+      '<div class="g2">'+
+        '<div class="fg"><label>Nomi (O\'zbek)</label><input class="fi" id="fuz" value="'+(p?p.name_uz:'')+'" placeholder="Classic Burger"></div>'+
+        '<div class="fg"><label>Nomi (Rus)</label><input class="fi" id="fru" value="'+(p?p.name_ru:'')+'" placeholder="Klassik Burger"></div>'+
+      '</div>'+
+      '<div class="g2">'+
+        '<div class="fg"><label>Tavsif (O\'zbek)</label><input class="fi" id="fduz" value="'+(p?p.desc_uz:'p')+'" placeholder="Mol goshti..."></div>'+
+        '<div class="fg"><label>Tavsif (Rus)</label><input class="fi" id="fdru" value="'+(p?p.desc_ru:'p')+'" placeholder="Govyadina..."></div>'+
+      '</div>'+
+      '<div class="g2">'+
+        '<div class="fg"><label>Narx (som)</label><input class="fi" id="fprice" type="number" value="'+(p?p.price:'')+'" placeholder="35000"></div>'+
+        '<div class="fg"><label>Kategoriya</label>'+
+          '<select class="fi" id="fcat">'+
+            '<option value="1"'+((!p||p.category_id==1)?' selected':'')+'>Burgerlar</option>'+
+            '<option value="2"'+((p&&p.category_id==2)?' selected':'')+'>Pizzalar</option>'+
+            '<option value="3"'+((p&&p.category_id==3)?' selected':'')+'>Salatlar</option>'+
+            '<option value="4"'+((p&&p.category_id==4)?' selected':'')+'>Ichimliklar</option>'+
+          '</select>'+
+        '</div>'+
+      '</div>'+
+      '<div class="fg"><label>Rasm URL (Unsplash va boshqa)</label><input class="fi" id="fimg" value="'+(p?p.image:'')+'" placeholder="https://images.unsplash.com/...?w=400" oninput="prevImg(this.value)"></div>'+
+      '<div id="pv" style="margin-top:6px">'+(p&&p.image?'<img src="'+p.image+'" style="height:65px;border-radius:8px">':'')+'</div>'+
+      '<div style="margin-top:12px">'+
+        '<button class="sbtn" onclick="saveProd()">Saqlash</button>'+
+        '<button class="gbtn" onclick="editId=null;go(\'add\')">Tozalash</button>'+
+      '</div>'+
+    '</div>';
 }
 
-// ── DATA ──────────────────────────────────────────────────────────────────────
-async function apiFetch(url, opts) {
-  const sep = url.includes('?') ? '&' : '?';
-  const r = await fetch(url + sep + 'uid=' + UID, opts || {headers:H});
-  const data = await r.json();
-  if (!r.ok) throw new Error(data.error || 'HTTP '+r.status);
-  return data;
+// ---------- API ----------
+function apiFetch(url,opts,cb){
+  var sep=url.indexOf('?')>=0?'&':'?';
+  fetch(url+sep+'uid='+UID,opts||{headers:H})
+    .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+    .then(function(res){
+      if(!res.ok){cb(new Error(res.data.error||'HTTP error'),null);}
+      else{cb(null,res.data);}
+    })
+    .catch(function(e){cb(e,null);});
 }
 
-async function loadAll() {
-  try {
-    const [s] = await Promise.all([apiFetch('/api/admin/stats'), loadOrdersData(), loadCouriersData()]);
-    const sn = document.getElementById('sn');
-    if (!sn) return;
-    document.getElementById('sn').textContent = s.new||0;
-    document.getElementById('sc2').textContent = (s.cooking||0)+(s.accepted||0);
-    document.getElementById('sw').textContent = s.on_way||0;
-    document.getElementById('sd').textContent = s.delivered||0;
-    document.getElementById('sr').textContent = Math.round((s.today_total||0)/1000)+'K';
-    document.getElementById('sa').textContent = (s.new||0)+(s.accepted||0)+(s.cooking||0)+(s.on_way||0)+(s.delivered||0);
-    document.getElementById('badge').textContent = s.new||0;
-    const nw = orders.filter(o=>o.status==='new').slice(0,5);
-    const dnew = document.getElementById('dnew');
-    if (dnew) dnew.innerHTML = nw.length ? rows(nw) : '<div class="empty">Yangi buyurtma yo'q ✅</div>';
-  } catch(e) {
-    const dnew = document.getElementById('dnew');
-    if (dnew) dnew.innerHTML = '<div class="empty">❌ '+e.message+'</div>';
+// ---------- DATA ----------
+function loadAll(){
+  apiFetch('/api/admin/stats',null,function(err,s){
+    if(err){console.error('stats err:',err.message);return;}
+    if(!el('sn'))return;
+    el('sn').textContent=s.new||0;
+    el('sc2').textContent=(s.cooking||0)+(s.accepted||0);
+    el('sw').textContent=s.on_way||0;
+    el('sd').textContent=s.delivered||0;
+    el('sr').textContent=Math.round((s.today_total||0)/1000)+'K';
+    el('sa').textContent=(s.new||0)+(s.accepted||0)+(s.cooking||0)+(s.on_way||0)+(s.delivered||0);
+    el('badge').textContent=s.new||0;
+  });
+  apiFetch('/api/admin/orders',null,function(err,data){
+    if(!err){orders=data;}
+    apiFetch('/api/admin/couriers',null,function(e2,c){
+      if(!e2)couriers=c;
+      var nw=orders.filter(function(o){return o.status==='new';}).slice(0,5);
+      var dn=el('dnew');
+      if(dn)dn.innerHTML=nw.length?rows(nw):'<div class="empty">Yangi buyurtma yoq</div>';
+    });
+  });
+}
+
+function reloadOrders(){
+  apiFetch('/api/admin/orders',null,function(err,data){
+    if(!err)orders=data;
+    renderOrders(cFilt);
+  });
+}
+
+function filt(s,btn){
+  cFilt=s;
+  qsa('.fb').forEach(function(b){b.className=b.className.replace(' on','');});
+  btn.className+=' on';
+  renderOrders(s);
+}
+
+function renderOrders(s){
+  var list=s==='all'?orders:orders.filter(function(o){return o.status===s;});
+  var ob=el('obody');
+  if(ob)ob.innerHTML=list.length?rows(list):'<div class="empty">Buyurtma yoq</div>';
+}
+
+function rows(list){
+  return list.map(function(o){
+    return '<div class="tr" onclick="openM('+o.id+')">'+
+      '<span class="on2">#'+o.id+'</span>'+
+      '<div><div style="font-weight:700;font-size:12px">'+(o.user_name||'?')+'</div>'+
+      '<div style="font-size:10px;color:#64748b;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:300px">'+
+        o.items.map(function(i){return i.name_uz+'x'+i.qty;}).join(', ')+'</div></div>'+
+      '<span>'+(o.total||0).toLocaleString()+" so'm</span>"+
+      '<span style="color:#64748b">'+(PL[o.payment]||o.payment)+'</span>'+
+      '<span class="sp '+(SC[o.status]||'s-new')+'">'+(SL[o.status]||o.status)+'</span>'+
+      '<span style="font-size:10px;color:#64748b">'+ago(o.created_at)+'</span>'+
+    '</div>';
+  }).join('');
+}
+
+function loadProds(){
+  var ptb=el('ptb');
+  if(!ptb)return;
+  apiFetch('/api/admin/products',null,function(err,data){
+    if(err){ptb.innerHTML='<div class="empty">Xatolik: '+err.message+'</div>';return;}
+    prods=data;
+    ptb.innerHTML=pyods.length?prods.map(function(p){
+      return '<div class="pr">'+
+        '<img class="pimg" src="'+(p.image||'')+'" onerror="this.src=\'https://via.placeholder.com/40\'">'+
+        '<div style="flex:1"><div class="pn">'+p.name_uz+' / '+p.name_ru+'</div>'+
+        '<div class="pp">'+(p.price||0).toLocaleString()+" so'm &middot; "+(p.cat_name||'')+'</div></div>'+
+        '<button class="tb '+(p.active?'ton':'tof')+'" style="margin-right:6px" onclick="togProd('+p.id+','+p.active+')">'+(p.active?'Faol':'Nofaol')+'</button>'+
+        '<button class="tb ton" onclick="editProd('+p.id+')">Tahrir</button>'+
+      '</div>';
+    }).join(''):'<div class="empty">Mahsulot yoq</div>';
+  });
+}
+
+function togProd(id,cur){
+  apiFetch('/api/admin/products/'+id,{method:'PUT',headers:H,body:JSON.stringify({active:cur?0:1})},function(err){
+    if(err){alert('Xatolik: '+err.message);}
+    else{loadProds();}
+  });
+}
+
+function editProd(id){editId=id;go('add');}
+
+function prevImg(url){
+  var pv=el('pv');
+  if(pv)pv.innerHTML=url?'<img src="'+url+'" style="height:65px;border-radius:8px;margin-top:4px" onerror="this.style.display=\'none\'">':'';
+}
+
+function saveProd(){
+  var id=el('eid')&&el('eid').value;
+  var data={
+    name_uz:(el('fuz')&&el('fuz').value)||'',
+    name_ru:(el('fru')&&el('fru').value)||'',
+    desc_uz:(el('fduz')&&el('fduz').value)||'',
+    desc_ru:(el('fdru')&&el('fdru').value)||'',
+    price:parseInt((el('fprice')&&el('fprice').value)||'0')||0,
+    category_id:parseInt((el('fcat')&&el('fcat').value)||'1')||1,
+    image:(el('fimg')&&el('fimg').value)||'',
+    active:1
+  };
+  if(!data.name_uz||!data.price){alert('Nomi va narxni kiriting!');return;}
+  var url=id?'/api/admin/products/'+id:'/api/admin/products';
+  var method=id?'PUT':'POST';
+  apiFetch(url,{method:method,headers:H,body:JSON.stringify(data)},function(err){
+    if(err){alert('Xatolik: '+err.message);}
+    else{alert('Saqlandi!');editId=null;go('menu');}
+  });
+}
+
+function openM(id){
+  var o=null;
+  for(var i=0;i<orders.length;i++){if(orders[i].id===id){o=orders[i];break;}}
+  if(!o)return;
+  el('MT').textContent='Buyurtma #'+o.id;
+  el('modal').style.display='flex';
+  var iH=o.items.map(function(i){
+    return '<div class="ir"><span>'+i.name_uz+' x '+i.qty+'</span><span>'+(i.price*i.qty).toLocaleString()+" so'm</span></div>";
+  }).join('')+'<div class="ir"><span>Jami</span><span style="color:#e63946">'+(o.total||0).toLocaleString()+" so'm</span></div>";
+  var cOpts='<option value="">-- Tanlang --</option>';
+  couriers.forEach(function(c){
+    cOpts+='<option value="'+c.telegram_id+'"'+(o.courier_id===c.telegram_id?' selected':'')+'>'+c.first_name+' '+(c.last_name||'')+'</option>';
+  });
+  var sOpts='';
+  Object.keys(SL).forEach(function(v){
+    sOpts+='<option value="'+v+'"'+(o.status===v?' selected':'')+'>'+SL[v]+'</option>';
+  });
+  var html='<div class="dl">Mijoz</div><div class="dv">'+(o.user_name||'-')+' | '+(o.user_phone||'-')+'</div>';
+  if(o.address)html+='<div class="dl">Manzil</div><div class="dv">'+o.address+'</div>';
+  if(o.comment)html+='<div class="dl">Izoh</div><div class="dv">'+o.comment+'</div>';
+  html+='<div class="dl">Buyurtma</div><div class="ib">'+iH+'</div>';
+  if(o.lat&&o.lng)html+='<div class="dl">Xarita</div><div id="omap"></div>';
+  html+='<div class="dl">Kuryer</div><select class="cs" id="csel">'+cOpts+'</select>';
+  html+='<div class="dl">Status</div><select class="ss" id="ssel">'+sOpts+'</select>';
+  html+='<button class="ab ab-p" onclick="updOrd('+o.id+')">Saqlash va bildirishnoma</button>';
+  if(o.lat&&o.lng)html+='<button class="ab ab-g" style="margin-top:6px" onclick="window.open(\'https://www.google.com/maps?q='+o.lat+','+o.lng+'\',\'_blank\')">Google Maps</button>';
+  el('MB').innerHTML=html;
+  if(o.lat&&o.lng){
+    setTimeout(function(){
+      var m=L.map('omap').setView([o.lat,o.lng],15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(m);
+      L.marker([o.lat,o.lng]).addTo(m).bindPopup(o.user_name||'Mijoz').openPopup();
+    },100);
   }
 }
 
-async function loadOrdersData() {
-  try { orders = await apiFetch('/api/admin/orders'); } catch(e) { orders = []; }
-}
-async function loadCouriersData() {
-  try { couriers = await apiFetch('/api/admin/couriers'); } catch(e) { couriers = []; }
-}
-
-async function reloadOrders() {
-  await loadOrdersData();
-  renderOrders(cFilt);
-}
-
-function filt(s, btn) {
-  cFilt = s;
-  document.querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
-  renderOrders(s);
-}
-function renderOrders(s) {
-  const list = s==='all' ? orders : orders.filter(o=>o.status===s);
-  const el = document.getElementById('obody');
-  if (el) el.innerHTML = list.length ? rows(list) : '<div class="empty">Buyurtma yo'q</div>';
-}
-function rows(list) {
-  return list.map(o =>
-    '<div class="tr" onclick="openM('+o.id+')">' +
-    '<span class="on2">#'+o.id+'</span>' +
-    '<div><div style="font-weight:700;font-size:12px">'+(o.user_name||'?')+'</div>'+
-    '<div style="font-size:10px;color:#64748b;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:350px">'+o.items.map(i=>i.name_uz+'x'+i.qty).join(', ')+'</div></div>'+
-    '<span>'+(o.total||0).toLocaleString()+" so'm</span>"+
-    '<span style="color:#64748b;font-size:11px">'+(PL[o.payment]||o.payment)+'</span>'+
-    '<span class="sp '+(SC[o.status]||'s-new')+'">'+(SL[o.status]||o.status)+'</span>'+
-    '<span style="font-size:10px;color:#64748b">'+ago(o.created_at)+'</span>'+
-    '</div>'
-  ).join('');
+function updOrd(id){
+  var s=el('ssel')&&el('ssel').value;
+  var cid=el('csel')&&el('csel').value;
+  var c=null;
+  couriers.forEach(function(x){if(x.telegram_id===cid)c=x;});
+  var cn=c?(c.first_name+' '+(c.last_name||'')).trim():null;
+  apiFetch('/api/admin/orders/'+id,{method:'PUT',headers:H,body:JSON.stringify({status:s,courier_id:cid||null,courier_name:cn})},function(err){
+    if(err)alert('Xatolik: '+err.message);
+    else{closeM();loadAll();}
+  });
 }
 
-async function loadProds() {
-  const el = document.getElementById('ptb');
-  if (!el) return;
-  try {
-    prods = await apiFetch('/api/admin/products');
-    el.innerHTML = prods.length ? prods.map(p=>
-      '<div class="pr">'+
-      '<img class="pimg" src="'+(p.image||'')+'" onerror="this.src='https://via.placeholder.com/40'">'+
-      '<div style="flex:1"><div class="pn">'+p.name_uz+' / '+p.name_ru+'</div>'+
-      '<div class="pp">'+(p.price||0).toLocaleString()+" so'm · "+(p.cat_name||'')+'</div></div>'+
-      '<button class="tb '+(p.active?'ton':'tof')+'" style="margin-right:6px" onclick="togProd('+p.id+','+p.active+')">'+(p.active?'✅':'❌')+'</button>'+
-      '<button class="tb ton" onclick="editProd('+p.id+')">✏️</button>'+
-      '</div>'
-    ).join('') : '<div class="empty">Mahsulot yo'q</div>';
-  } catch(e) { el.innerHTML='<div class="empty">❌ '+e.message+'</div>'; }
-}
-
-async function togProd(id, cur) {
-  try { await apiFetch('/api/admin/products/'+id,{method:'PUT',headers:H,body:JSON.stringify({active:cur?0:1})}); loadProds(); }
-  catch(e) { alert('Xatolik: '+e.message); }
-}
-
-function editProd(id) { editId=id; go('add'); }
-
-function prevImg(url) {
-  const el = document.getElementById('pv');
-  if (el) el.innerHTML = url ? '<img src="'+url+'" style="height:65px;border-radius:8px;margin-top:4px" onerror="this.style.display='none'">' : '';
-}
-
-async function saveProd() {
-  const id = document.getElementById('eid')?.value;
-  const data = {
-    name_uz: document.getElementById('fuz')?.value?.trim(),
-    name_ru: document.getElementById('fru')?.value?.trim()||'',
-    desc_uz: document.getElementById('fduz')?.value?.trim()||'',
-    desc_ru: document.getElementById('fdru')?.value?.trim()||'',
-    price: parseInt(document.getElementById('fprice')?.value)||0,
-    category_id: parseInt(document.getElementById('fcat')?.value)||1,
-    image: document.getElementById('fimg')?.value?.trim()||'',
-    active: 1
-  };
-  if (!data.name_uz||!data.price){alert('Nomi va narxni kiriting!');return;}
-  try {
-    if (id) await apiFetch('/api/admin/products/'+id,{method:'PUT',headers:H,body:JSON.stringify(data)});
-    else await apiFetch('/api/admin/products',{method:'POST',headers:H,body:JSON.stringify(data)});
-    alert('✅ Saqlandi!');
-    editId=null; go('menu');
-  } catch(e){alert('Xatolik: '+e.message);}
-}
-
-function openM(id) {
-  const o = orders.find(x=>x.id===id);
-  if(!o) return;
-  document.getElementById('mtitle').textContent='Buyurtma #'+o.id;
-  document.getElementById('modal').style.display='flex';
-  const iH = o.items.map(i=>'<div class="ir"><span>'+i.name_uz+' × '+i.qty+'</span><span>'+(i.price*i.qty).toLocaleString()+" so'm</span></div>").join('')
-    +'<div class="ir"><span>Jami</span><span style="color:#e63946">'+(o.total||0).toLocaleString()+" so'm</span></div>";
-  document.getElementById('mbody').innerHTML=
-    '<div class="dl">Mijoz</div><div class="dv">'+(o.user_name||'-')+' | '+(o.user_phone||'-')+'</div>'+
-    (o.address?'<div class="dl">Manzil</div><div class="dv">📍 '+o.address+'</div>':'')+
-    (o.comment?'<div class="dl">Izoh</div><div class="dv">💬 '+o.comment+'</div>':'')+
-    '<div class="dl">Buyurtma</div><div class="ib">'+iH+'</div>'+
-    (o.lat&&o.lng?'<div class="dl">Xarita</div><div id="omap"></div>':'')+
-    '<div class="dl">Kuryer</div><select class="cs" id="csel"><option value="">-- Tanlang --</option>'+
-    couriers.map(c=>'<option value="'+c.telegram_id+'" '+(o.courier_id===c.telegram_id?'selected':'')+'>'+(c.first_name||'')+' '+(c.last_name||'')+'</option>').join('')+'</select>'+
-    '<div class="dl">Status</div><select class="ss" id="ssel">'+
-    Object.entries(SL).map(([v,l])=>'<option value="'+v+'" '+(o.status===v?'selected':'')+'>'+l+'</option>').join('')+'</select>'+
-    '<button class="ab ab-p" onclick="updOrd('+o.id+')">💾 Saqlash va bildirishnoma</button>'+
-    (o.lat&&o.lng?'<button class="ab ab-g" style="margin-top:6px" onclick="window.open('https://www.google.com/maps?q='+o.lat+','+o.lng+'','_blank')">🗺 Google Maps</button>':'');
-  if (o.lat&&o.lng) setTimeout(()=>{
-    const m=L.map('omap').setView([o.lat,o.lng],15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(m);
-    L.marker([o.lat,o.lng]).addTo(m).bindPopup(o.user_name||'Mijoz').openPopup();
-  },100);
-}
-async function updOrd(id){
-  try{
-    const s=document.getElementById('ssel')?.value;
-    const cid=document.getElementById('csel')?.value;
-    const c=couriers.find(x=>x.telegram_id===cid);
-    await apiFetch('/api/admin/orders/'+id,{method:'PUT',headers:H,body:JSON.stringify({status:s,courier_id:cid||null,courier_name:c?(c.first_name+' '+(c.last_name||'')).trim():null})});
-    closeM();loadAll();
-  }catch(e){alert('Xatolik: '+e.message);}
-}
-function closeM(){document.getElementById('modal').style.display='none';}
+function closeM(){el('modal').style.display='none';}
 
 function buildMap(){
-  if(!fmap){fmap=L.map('fullMap').setView([41.2995,69.2401],12);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(fmap);}
-  setTimeout(()=>fmap.invalidateSize(),200);
-  orders.filter(o=>['new','accepted','cooking','on_way'].includes(o.status)&&o.lat&&o.lng).forEach(o=>{
-    L.marker([o.lat,o.lng]).addTo(fmap).bindPopup('<b>#'+o.id+'</b> '+(o.user_name||'')+'<br>'+(SL[o.status]||'')+'<br>'+(o.total||0).toLocaleString()+" so'm");
+  if(!fmap){
+    fmap=L.map('fullMap').setView([41.2995,69.2401],12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(fmap);
+  }
+  setTimeout(function(){fmap.invalidateSize();},200);
+  orders.filter(function(o){return ['new','accepted','cooking','on_way'].indexOf(o.status)>=0&&o.lat&&o.lng;}).forEach(function(o){
+    L.marker([o.lat,o.lng]).addTo(fmap).bindPopup('#'+o.id+' '+(o.user_name||'')+'<br>'+(SL[o.status]||'')+'<br>'+(o.total||0).toLocaleString()+" so'm");
   });
 }
 
 function ago(dt){
   if(!dt)return'-';
-  const d=(Date.now()-new Date(dt).getTime())/60000;
+  var d=(Date.now()-new Date(dt).getTime())/60000;
   return d<1?'Hozir':d<60?Math.floor(d)+' daq':Math.floor(d/60)+' soat';
 }
 
 // START
-if (!UID) {
-  document.getElementById('main-content').innerHTML = '<div style="padding:20px;color:#e63946;font-weight:700">⚠️ UID topilmadi! Botdan "Admin Panel" tugmasini bosing.</div>';
-} else {
+if(!UID){
+  el('MC').innerHTML='<div style="padding:20px;color:#e63946;font-weight:700">UID topilmadi! Botdan Admin Panel tugmasini bosing.</div>';
+}else{
   go('dash');
-  setInterval(()=>{ if(curPage==='dash')loadAll(); else if(curPage==='orders')loadOrdersData().then(()=>renderOrders(cFilt)); }, 30000);
+  setInterval(function(){
+    if(curPage==='dash')loadAll();
+    else if(curPage==='orders')reloadOrders();
+  },30000);
 }
 </script>
 </body></html>
