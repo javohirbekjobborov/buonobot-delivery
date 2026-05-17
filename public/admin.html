@@ -7,68 +7,66 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;display:flex;min-height:100vh}
-.sidebar{width:185px;background:#1a1a2e;color:#fff;position:fixed;top:0;left:0;height:100vh;z-index:100;display:flex;flex-direction:column}
-.logo{padding:14px;font-size:15px;font-weight:800;border-bottom:1px solid rgba(255,255,255,.1);color:#e63946;flex-shrink:0}
-.nav{flex:1;padding:8px;overflow-y:auto}
-.nb{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;color:rgba(255,255,255,.75);cursor:pointer;font-size:13px;font-weight:500;margin-bottom:3px;border:none;background:none;width:100%;text-align:left;transition:.15s}
-.nb:hover,.nb.on{background:rgba(255,255,255,.12);color:#fff;border-left:3px solid #e63946}
-.nb:not(.on){border-left:3px solid transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;display:flex;min-height:100vh;min-height:100svh}
+.sidebar{width:170px;background:#1a1a2e;color:#fff;position:fixed;top:0;left:0;height:100%;height:100svh;z-index:100;display:flex;flex-direction:column}
+.logo{padding:12px 14px;font-size:14px;font-weight:800;color:#e63946;border-bottom:1px solid rgba(255,255,255,.1);flex-shrink:0}
+.nav{flex:1;padding:6px;overflow-y:auto}
+.nb{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:8px;color:rgba(255,255,255,.75);cursor:pointer;font-size:13px;font-weight:500;margin-bottom:2px;border:none;background:none;width:100%;text-align:left}
+.nb:hover,.nb.on{background:rgba(255,255,255,.12);color:#fff}
 .bdg{background:#e63946;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:auto}
-.uid{padding:10px 14px;font-size:10px;color:rgba(255,255,255,.3);border-top:1px solid rgba(255,255,255,.08);flex-shrink:0}
-.main{margin-left:185px;flex:1;padding:16px}
-.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-.ph h1{font-size:18px;font-weight:800}
-.rbtn{background:#fff;border:1px solid #e2e8f0;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
-.sc{background:#fff;border-radius:10px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.sl{font-size:11px;color:#64748b;margin-bottom:4px}.sv{font-size:22px;font-weight:800}
-.fbox{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
-.fb{padding:5px 12px;border-radius:20px;border:2px solid #e2e8f0;background:#fff;font-size:12px;font-weight:600;cursor:pointer}
+.uid{padding:8px 14px;font-size:10px;color:rgba(255,255,255,.3);flex-shrink:0;border-top:1px solid rgba(255,255,255,.07)}
+.main{margin-left:170px;flex:1;padding:14px;overflow-y:auto;max-height:100svh}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.ph h1{font-size:17px;font-weight:800}
+.rbtn{background:#fff;border:1px solid #e2e8f0;padding:5px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.sc{background:#fff;border-radius:9px;padding:11px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.sl{font-size:10px;color:#64748b;margin-bottom:3px}.sv{font-size:20px;font-weight:800}
+.fbox{display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap}
+.fb{padding:4px 10px;border-radius:20px;border:2px solid #e2e8f0;background:#fff;font-size:11px;font-weight:600;cursor:pointer}
 .fb.on{background:#1a1a2e;color:#fff;border-color:#1a1a2e}
-.tbl{background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
-.th{display:grid;grid-template-columns:50px 1fr 100px 90px 110px 80px;gap:8px;padding:9px 12px;border-bottom:2px solid #e2e8f0;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase}
-.tr{display:grid;grid-template-columns:50px 1fr 100px 90px 110px 80px;gap:8px;padding:10px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:13px;align-items:center}
+.tbl{background:#fff;border-radius:9px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.th{display:grid;grid-template-columns:46px 1fr 95px 80px 105px 75px;gap:8px;padding:8px 12px;border-bottom:2px solid #e2e8f0;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase}
+.tr{display:grid;grid-template-columns:46px 1fr 95px 80px 105px 75px;gap:8px;padding:9px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:12px;align-items:center}
 .tr:hover{background:#f8fafc}.tr:last-child{border:none}
 .on2{font-weight:800;color:#e63946}
-.sp{padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.sp{padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
 .s-new{background:#fef3c7;color:#92400e}.s-accepted{background:#dbeafe;color:#1e40af}
 .s-cooking{background:#fce7f3;color:#9d174d}.s-on_way{background:#d1fae5;color:#065f46}
 .s-delivered{background:#f0fdf4;color:#166534}.s-cancelled{background:#fee2e2;color:#991b1b}
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
-.om{background:#fff;border-radius:14px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto}
-.oh{padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
-.ot{font-size:15px;font-weight:800}
-.xb{background:none;border:none;font-size:22px;cursor:pointer;color:#64748b}
-.ob{padding:14px 18px}
-.dl{font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;margin:10px 0 4px}
-.dv{font-size:14px;font-weight:600}
-.ib{background:#f8fafc;border-radius:8px;padding:10px 12px}
-.ir{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
-.ir:last-child{margin:0;padding-top:7px;border-top:1px solid #e2e8f0;font-weight:800}
-#omap{height:180px;border-radius:8px;margin:8px 0}
-.ss,.cs{width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;margin-top:4px}
-.ab{width:100%;padding:12px;border-radius:8px;border:none;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:12px}
+.om{background:#fff;border-radius:12px;width:100%;max-width:520px;max-height:90vh;max-height:90svh;overflow-y:auto}
+.oh{padding:13px 16px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+.ot{font-size:14px;font-weight:800}.xb{background:none;border:none;font-size:20px;cursor:pointer;color:#64748b}
+.ob{padding:13px 16px}
+.dl{font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;margin:10px 0 3px}
+.dv{font-size:13px;font-weight:600}
+.ib{background:#f8fafc;border-radius:8px;padding:9px 11px}
+.ir{display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px}
+.ir:last-child{margin:0;padding-top:6px;border-top:1px solid #e2e8f0;font-weight:800}
+#omap{height:170px;border-radius:8px;margin:7px 0}
+.ss,.cs{width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none;margin-top:3px}
+.ab{width:100%;padding:11px;border-radius:8px;border:none;font-size:13px;font-weight:700;cursor:pointer;margin-top:7px}
 .ab-p{background:#1a1a2e;color:#fff}.ab-g{background:#22c55e;color:#fff}
-#fullMap{height:calc(100vh - 120px);border-radius:10px}
-.ptb{background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
-.pr{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f1f5f9}
+#fullMap{height:calc(100svh - 110px);border-radius:9px}
+.ptb{background:#fff;border-radius:9px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.pr{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1px solid #f1f5f9}
 .pr:last-child{border:none}
-.pimg{width:44px;height:44px;border-radius:6px;object-fit:cover;background:#f1f5f9;flex-shrink:0}
-.pn{font-weight:700;font-size:13px}.pp{font-size:12px;color:#64748b}
-.tb{padding:5px 12px;border-radius:20px;border:none;cursor:pointer;font-weight:600;font-size:12px}
+.pimg{width:40px;height:40px;border-radius:6px;object-fit:cover;background:#f1f5f9;flex-shrink:0}
+.pn{font-weight:700;font-size:12px}.pp{font-size:11px;color:#64748b}
+.tb{padding:4px 10px;border-radius:20px;border:none;cursor:pointer;font-weight:600;font-size:11px}
 .ton{background:#d1fae5;color:#065f46}.tof{background:#fee2e2;color:#991b1b}
-.form{background:#fff;border-radius:10px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.form h3{font-size:15px;font-weight:700;margin-bottom:12px}
-.fg{margin-bottom:10px}
-.fg label{display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:4px}
-.fi{width:100%;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;font-family:inherit}
+.form{background:#fff;border-radius:9px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.form h3{font-size:14px;font-weight:700;margin-bottom:10px}
+.fg{margin-bottom:8px}
+.fg label{display:block;font-size:11px;font-weight:600;color:#64748b;margin-bottom:3px}
+.fi{width:100%;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none;font-family:inherit}
 .fi:focus{border-color:#e63946}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.sbtn{background:#e63946;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer}
-.gbtn{background:#64748b;color:#fff;border:none;padding:10px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;margin-left:8px}
-.empty{text-align:center;padding:24px;color:#64748b;font-size:13px}
-.err{background:#fee2e2;color:#991b1b;padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:13px;font-weight:600;display:none}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sbtn{background:#e63946;color:#fff;border:none;padding:9px 18px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer}
+.gbtn{background:#64748b;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;margin-left:7px}
+.empty{text-align:center;padding:22px;color:#64748b;font-size:12px}
+.err{background:#fee2e2;color:#991b1b;padding:9px 12px;border-radius:8px;margin-bottom:10px;font-size:12px;font-weight:600}
 </style></head>
 <body>
 <aside class="sidebar">
@@ -78,89 +76,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;
     <button class="nb" id="nb-orders" onclick="go('orders')">📋 Buyurtmalar <span class="bdg" id="badge">0</span></button>
     <button class="nb" id="nb-map" onclick="go('map')">🗺 Xarita</button>
     <button class="nb" id="nb-menu" onclick="go('menu')">🍔 Menyu</button>
-    <button class="nb" id="nb-add" onclick="go('add')">➕ Ovqat qo'shish</button>
+    <button class="nb" id="nb-add" onclick="go('add')">➕ Qo'shish</button>
   </nav>
-  <div class="uid" id="uid-info">Yuklanmoqda...</div>
+  <div class="uid" id="uid-info"></div>
 </aside>
-
-<main class="main">
-  <div class="err" id="errbox"></div>
-
-  <div id="s-dash">
-    <div class="ph"><h1>📊 Dashboard</h1><button class="rbtn" onclick="loadAll()">🔄 Yangilash</button></div>
-    <div class="stats">
-      <div class="sc"><div class="sl">🆕 Yangi</div><div class="sv" id="sn" style="color:#f59e0b">0</div></div>
-      <div class="sc"><div class="sl">👨‍🍳 Tayyorlanmoqda</div><div class="sv" id="sc" style="color:#8b5cf6">0</div></div>
-      <div class="sc"><div class="sl">🛵 Yo'lda</div><div class="sv" id="sw" style="color:#3b82f6">0</div></div>
-      <div class="sc"><div class="sl">✅ Bugun yetkazildi</div><div class="sv" id="sd" style="color:#22c55e">0</div></div>
-      <div class="sc"><div class="sl">💰 Bugungi daromad</div><div class="sv" id="sr" style="color:#e63946">0</div></div>
-      <div class="sc"><div class="sl">📦 Jami</div><div class="sv" id="sa">0</div></div>
-    </div>
-    <div class="ph"><h2 style="font-size:15px;font-weight:700">⚡ Yangi buyurtmalar</h2></div>
-    <div class="tbl">
-      <div class="th"><span>#</span><span>Mijoz</span><span>Jami</span><span>To'lov</span><span>Status</span><span>Vaqt</span></div>
-      <div id="dnew"><div class="empty">Yuklanmoqda...</div></div>
-    </div>
-  </div>
-
-  <div id="s-orders" style="display:none">
-    <div class="ph"><h1>📋 Buyurtmalar</h1><button class="rbtn" onclick="loadOrders().then(renderOrders.bind(null,cFilt))">🔄</button></div>
-    <div class="fbox">
-      <button class="fb on" onclick="filt('all',this)">Barchasi</button>
-      <button class="fb" onclick="filt('new',this)">🆕 Yangi</button>
-      <button class="fb" onclick="filt('accepted',this)">✅ Qabul</button>
-      <button class="fb" onclick="filt('cooking',this)">👨‍🍳 Tayyorlanmoqda</button>
-      <button class="fb" onclick="filt('on_way',this)">🛵 Yo'lda</button>
-      <button class="fb" onclick="filt('delivered',this)">🎉 Yetkazildi</button>
-    </div>
-    <div class="tbl">
-      <div class="th"><span>#</span><span>Mijoz</span><span>Jami</span><span>To'lov</span><span>Status</span><span>Vaqt</span></div>
-      <div id="obody"><div class="empty">Yuklanmoqda...</div></div>
-    </div>
-  </div>
-
-  <div id="s-map" style="display:none">
-    <div class="ph"><h1>🗺 Xarita</h1><button class="rbtn" onclick="buildMap()">🔄</button></div>
-    <div id="fullMap"></div>
-  </div>
-
-  <div id="s-menu" style="display:none">
-    <div class="ph"><h1>🍔 Menyu boshqaruvi</h1><button class="rbtn" onclick="loadProds()">🔄</button></div>
-    <div class="ptb" id="ptb"><div class="empty">Yuklanmoqda...</div></div>
-  </div>
-
-  <div id="s-add" style="display:none">
-    <div class="ph"><h1 id="ftitle">➕ Ovqat qo'shish</h1></div>
-    <div class="form">
-      <input type="hidden" id="eid">
-      <div class="g2">
-        <div class="fg"><label>Nomi (O'zbek)</label><input class="fi" id="fuz" placeholder="Classic Burger"></div>
-        <div class="fg"><label>Nomi (Rus)</label><input class="fi" id="fru" placeholder="Классик Бургер"></div>
-      </div>
-      <div class="g2">
-        <div class="fg"><label>Tavsif (O'zbek)</label><input class="fi" id="fduz" placeholder="Mol go'shti, salat..."></div>
-        <div class="fg"><label>Tavsif (Rus)</label><input class="fi" id="fdru" placeholder="Говядина, салат..."></div>
-      </div>
-      <div class="g2">
-        <div class="fg"><label>Narx (so'm)</label><input class="fi" id="fprice" type="number" placeholder="35000"></div>
-        <div class="fg"><label>Kategoriya</label>
-          <select class="fi" id="fcat">
-            <option value="1">🍔 Burgerlar</option>
-            <option value="2">🍕 Pizzalar</option>
-            <option value="3">🥗 Salatlar</option>
-            <option value="4">🥤 Ichimliklar</option>
-          </select>
-        </div>
-      </div>
-      <div class="fg"><label>Rasm URL</label><input class="fi" id="fimg" placeholder="https://images.unsplash.com/...?w=400&q=80"></div>
-      <div id="pv" style="margin-top:8px"></div>
-      <div style="margin-top:14px">
-        <button class="sbtn" onclick="saveProd()">💾 Saqlash</button>
-        <button class="gbtn" onclick="resetForm()">🗑 Tozalash</button>
-      </div>
-    </div>
-  </div>
-</main>
+<main class="main" id="main-content"></main>
 
 <div class="ov" id="modal" style="display:none">
   <div class="om">
@@ -171,280 +91,276 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;
 
 <script>
 const tg = window.Telegram?.WebApp;
-if (tg) { tg.expand(); tg.setHeaderColor && tg.setHeaderColor('#1a1a2e'); }
+if (tg) { tg.expand(); }
+const UID = new URLSearchParams(location.search).get('uid') || (tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : '');
+const H = {'Content-Type':'application/json','x-telegram-id':UID};
+document.getElementById('uid-info').textContent = UID ? 'ID: '+UID : 'UID topilmadi!';
 
-const UID = new URLSearchParams(location.search).get('uid') ||
-            (tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : '');
-const H = { 'Content-Type': 'application/json', 'x-telegram-id': UID };
+let orders=[], couriers=[], prods=[], fmap=null, cFilt='all', curPage='dash', editId=null;
+const PAGES = ['dash','orders','map','menu','add'];
+const SL = {new:'Yangi',accepted:'Qabul',cooking:'Tayyorlanmoqda',on_way:"Yo'lda",delivered:'Yetkazildi',cancelled:'Bekor'};
+const SC = {new:'s-new',accepted:'s-accepted',cooking:'s-cooking',on_way:'s-on_way',delivered:'s-delivered',cancelled:'s-cancelled'};
+const PL = {cash:'Naqd',click:'Click',payme:'Payme'};
 
-document.getElementById('uid-info').textContent = UID ? 'ID: ' + UID : '⚠️ UID yo'q!';
-
-let orders = [], couriers = [], prods = [], fmap = null, cFilt = 'all';
-const SECS = ['dash','orders','map','menu','add'];
-const SL = { new:'Yangi', accepted:'Qabul', cooking:'Tayyorlanmoqda', on_way:"Yo'lda", delivered:'Yetkazildi', cancelled:'Bekor' };
-const SC = { new:'s-new', accepted:'s-accepted', cooking:'s-cooking', on_way:'s-on_way', delivered:'s-delivered', cancelled:'s-cancelled' };
-const PL = { cash:'Naqd', click:'Click', payme:'Payme' };
-
-function showErr(msg) {
-  const el = document.getElementById('errbox');
-  el.textContent = msg ? '⚠️ ' + msg : '';
-  el.style.display = msg ? 'block' : 'none';
-}
-
-// --- NAVIGATION ---
+// ── NAVIGATION via innerHTML replacement ─────────────────────────────────────
 function go(name) {
-  // Hide all sections using inline style
-  SECS.forEach(n => {
-    const el = document.getElementById('s-' + n);
-    if (el) el.style.display = 'none';
-  });
-  // Show target
-  const target = document.getElementById('s-' + name);
-  if (target) target.style.display = 'block';
-  
-  // Update nav buttons
-  SECS.forEach(n => {
-    const btn = document.getElementById('nb-' + n);
-    if (btn) btn.classList.toggle('on', n === name);
-  });
-
-  if (name === 'map') setTimeout(buildMap, 100);
-  if (name === 'menu') loadProds();
-  if (name === 'add') resetForm();
+  curPage = name;
+  PAGES.forEach(n => { const b = document.getElementById('nb-'+n); if(b) b.classList.toggle('on', n===name); });
+  const m = document.getElementById('main-content');
+  m.innerHTML = '';
+  if(name === 'dash') renderDashPage(m);
+  else if(name === 'orders') renderOrdersPage(m);
+  else if(name === 'map') renderMapPage(m);
+  else if(name === 'menu') renderMenuPage(m);
+  else if(name === 'add') renderAddPage(m);
 }
 
-// --- API HELPER ---
+// ── PAGES ─────────────────────────────────────────────────────────────────────
+function renderDashPage(m) {
+  m.innerHTML = `<div class="ph"><h1>📊 Dashboard</h1><button class="rbtn" onclick="loadAll()">🔄 Yangilash</button></div>
+<div class="stats">
+  <div class="sc"><div class="sl">🆕 Yangi</div><div class="sv" id="sn" style="color:#f59e0b">0</div></div>
+  <div class="sc"><div class="sl">👨‍🍳 Tayyor</div><div class="sv" id="sc2" style="color:#8b5cf6">0</div></div>
+  <div class="sc"><div class="sl">🛵 Yo'lda</div><div class="sv" id="sw" style="color:#3b82f6">0</div></div>
+  <div class="sc"><div class="sl">✅ Bugun</div><div class="sv" id="sd" style="color:#22c55e">0</div></div>
+  <div class="sc"><div class="sl">💰 Daromad</div><div class="sv" id="sr" style="color:#e63946">0</div></div>
+  <div class="sc"><div class="sl">📦 Jami</div><div class="sv" id="sa">0</div></div>
+</div>
+<div class="ph"><h2 style="font-size:14px;font-weight:700">⚡ Yangi buyurtmalar</h2></div>
+<div class="tbl"><div class="th"><span>#</span><span>Mijoz</span><span>Jami</span><span>To'lov</span><span>Status</span><span>Vaqt</span></div><div id="dnew"><div class="empty">Yuklanmoqda...</div></div></div>`;
+  loadAll();
+}
+
+function renderOrdersPage(m) {
+  m.innerHTML = `<div class="ph"><h1>📋 Buyurtmalar</h1><button class="rbtn" onclick="reloadOrders()">🔄</button></div>
+<div class="fbox">
+  <button class="fb on" onclick="filt('all',this)">Barchasi</button>
+  <button class="fb" onclick="filt('new',this)">🆕 Yangi</button>
+  <button class="fb" onclick="filt('accepted',this)">✅ Qabul</button>
+  <button class="fb" onclick="filt('cooking',this)">👨‍🍳 Tayyor</button>
+  <button class="fb" onclick="filt('on_way',this)">🛵 Yo'lda</button>
+  <button class="fb" onclick="filt('delivered',this)">🎉 Yetkazildi</button>
+</div>
+<div class="tbl"><div class="th"><span>#</span><span>Mijoz</span><span>Jami</span><span>To'lov</span><span>Status</span><span>Vaqt</span></div><div id="obody"><div class="empty">Yuklanmoqda...</div></div></div>`;
+  reloadOrders();
+}
+
+function renderMapPage(m) {
+  m.innerHTML = `<div class="ph"><h1>🗺 Xarita</h1><button class="rbtn" onclick="buildMap()">🔄</button></div><div id="fullMap"></div>`;
+  setTimeout(buildMap, 200);
+}
+
+function renderMenuPage(m) {
+  m.innerHTML = `<div class="ph"><h1>🍔 Menyu boshqaruvi</h1><button class="rbtn" onclick="loadProds()">🔄</button></div><div class="ptb" id="ptb"><div class="empty">Yuklanmoqda...</div></div>`;
+  loadProds();
+}
+
+function renderAddPage(m) {
+  const id = editId ? prods.find(p=>p.id===editId) : null;
+  m.innerHTML = `<div class="ph"><h1>${editId?'✏️ Tahrirlash':'➕ Yangi ovqat'}</h1></div>
+<div class="form">
+  <input type="hidden" id="eid" value="${editId||''}">
+  <div class="g2">
+    <div class="fg"><label>Nomi (O'zbek)</label><input class="fi" id="fuz" value="${id?id.name_uz:''}" placeholder="Classic Burger"></div>
+    <div class="fg"><label>Nomi (Rus)</label><input class="fi" id="fru" value="${id?id.name_ru:''}" placeholder="Классик Бургер"></div>
+  </div>
+  <div class="g2">
+    <div class="fg"><label>Tavsif (O'zbek)</label><input class="fi" id="fduz" value="${id?id.desc_uz:''}" placeholder="Mol go'shti..."></div>
+    <div class="fg"><label>Tavsif (Rus)</label><input class="fi" id="fdru" value="${id?id.desc_ru:''}" placeholder="Говядина..."></div>
+  </div>
+  <div class="g2">
+    <div class="fg"><label>Narx (so'm)</label><input class="fi" id="fprice" type="number" value="${id?id.price:''}" placeholder="35000"></div>
+    <div class="fg"><label>Kategoriya</label>
+      <select class="fi" id="fcat">
+        <option value="1" ${(!id||id.category_id==1)?'selected':''}>🍔 Burgerlar</option>
+        <option value="2" ${id&&id.category_id==2?'selected':''}>🍕 Pizzalar</option>
+        <option value="3" ${id&&id.category_id==3?'selected':''}>🥗 Salatlar</option>
+        <option value="4" ${id&&id.category_id==4?'selected':''}>🥤 Ichimliklar</option>
+      </select>
+    </div>
+  </div>
+  <div class="fg"><label>Rasm URL (Unsplash)</label><input class="fi" id="fimg" value="${id?id.image:''}" placeholder="https://images.unsplash.com/...?w=400&q=80" oninput="prevImg(this.value)"></div>
+  <div id="pv" style="margin-top:6px">${id&&id.image?'<img src="'+id.image+'" style="height:65px;border-radius:8px">':''}</div>
+  <div style="margin-top:12px">
+    <button class="sbtn" onclick="saveProd()">💾 Saqlash</button>
+    <button class="gbtn" onclick="editId=null;go('add')">🗑 Tozalash</button>
+  </div>
+</div>`;
+}
+
+// ── DATA ──────────────────────────────────────────────────────────────────────
 async function apiFetch(url, opts) {
   const sep = url.includes('?') ? '&' : '?';
-  const r = await fetch(url + sep + 'uid=' + UID, opts || { headers: H });
+  const r = await fetch(url + sep + 'uid=' + UID, opts || {headers:H});
   const data = await r.json();
-  if (!r.ok) throw new Error(data.error || 'HTTP ' + r.status);
+  if (!r.ok) throw new Error(data.error || 'HTTP '+r.status);
   return data;
 }
 
-// --- LOAD DATA ---
-async function loadStats() {
-  try {
-    const s = await apiFetch('/api/admin/stats');
-    document.getElementById('sn').textContent = s.new || 0;
-    document.getElementById('sc').textContent = (s.cooking || 0) + (s.accepted || 0);
-    document.getElementById('sw').textContent = s.on_way || 0;
-    document.getElementById('sd').textContent = s.delivered || 0;
-    document.getElementById('sr').textContent = Math.round((s.today_total || 0) / 1000) + 'K';
-    document.getElementById('sa').textContent = (s.new||0)+(s.accepted||0)+(s.cooking||0)+(s.on_way||0)+(s.delivered||0);
-    document.getElementById('badge').textContent = s.new || 0;
-  } catch (e) { showErr('Stats: ' + e.message); }
-}
-
-async function loadOrders() {
-  try {
-    orders = await apiFetch('/api/admin/orders');
-  } catch (e) { showErr('Orders: ' + e.message); orders = []; }
-}
-
-async function loadCouriers() {
-  try { couriers = await apiFetch('/api/admin/couriers'); }
-  catch (e) { couriers = []; }
-}
-
 async function loadAll() {
-  showErr('');
-  await loadStats();
-  await loadOrders();
-  await loadCouriers();
-  renderDash();
-  renderOrders(cFilt);
-}
-
-async function loadProds() {
-  document.getElementById('ptb').innerHTML = '<div class="empty">Yuklanmoqda...</div>';
   try {
-    prods = await apiFetch('/api/admin/products');
-    renderProds();
-  } catch (e) {
-    document.getElementById('ptb').innerHTML = '<div class="empty">❌ ' + e.message + '</div>';
+    const [s] = await Promise.all([apiFetch('/api/admin/stats'), loadOrdersData(), loadCouriersData()]);
+    const sn = document.getElementById('sn');
+    if (!sn) return;
+    document.getElementById('sn').textContent = s.new||0;
+    document.getElementById('sc2').textContent = (s.cooking||0)+(s.accepted||0);
+    document.getElementById('sw').textContent = s.on_way||0;
+    document.getElementById('sd').textContent = s.delivered||0;
+    document.getElementById('sr').textContent = Math.round((s.today_total||0)/1000)+'K';
+    document.getElementById('sa').textContent = (s.new||0)+(s.accepted||0)+(s.cooking||0)+(s.on_way||0)+(s.delivered||0);
+    document.getElementById('badge').textContent = s.new||0;
+    const nw = orders.filter(o=>o.status==='new').slice(0,5);
+    const dnew = document.getElementById('dnew');
+    if (dnew) dnew.innerHTML = nw.length ? rows(nw) : '<div class="empty">Yangi buyurtma yo'q ✅</div>';
+  } catch(e) {
+    const dnew = document.getElementById('dnew');
+    if (dnew) dnew.innerHTML = '<div class="empty">❌ '+e.message+'</div>';
   }
 }
 
-// --- RENDER ---
-function renderDash() {
-  const nw = orders.filter(o => o.status === 'new').slice(0, 5);
-  document.getElementById('dnew').innerHTML = nw.length ? rows(nw) : '<div class="empty">Yangi buyurtma yo'q ✅</div>';
+async function loadOrdersData() {
+  try { orders = await apiFetch('/api/admin/orders'); } catch(e) { orders = []; }
+}
+async function loadCouriersData() {
+  try { couriers = await apiFetch('/api/admin/couriers'); } catch(e) { couriers = []; }
+}
+
+async function reloadOrders() {
+  await loadOrdersData();
+  renderOrders(cFilt);
 }
 
 function filt(s, btn) {
   cFilt = s;
-  document.querySelectorAll('.fb').forEach(b => b.classList.remove('on'));
+  document.querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
   renderOrders(s);
 }
-
 function renderOrders(s) {
-  const list = s === 'all' ? orders : orders.filter(o => o.status === s);
-  document.getElementById('obody').innerHTML = list.length ? rows(list) : '<div class="empty">Buyurtma yo'q</div>';
+  const list = s==='all' ? orders : orders.filter(o=>o.status===s);
+  const el = document.getElementById('obody');
+  if (el) el.innerHTML = list.length ? rows(list) : '<div class="empty">Buyurtma yo'q</div>';
 }
-
 function rows(list) {
   return list.map(o =>
-    '<div class="tr" onclick="openM(' + o.id + ')">' +
-    '<span class="on2">#' + o.id + '</span>' +
-    '<div><div style="font-weight:700">' + (o.user_name || '?') + '</div>' +
-    '<div style="font-size:11px;color:#64748b;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:400px">' +
-    o.items.map(i => i.name_uz + ' x' + i.qty).join(', ') + '</div></div>' +
-    '<span>' + (o.total || 0).toLocaleString() + " so'm</span>" +
-    '<span style="color:#64748b">' + (PL[o.payment] || o.payment) + '</span>' +
-    '<span class="sp ' + (SC[o.status] || 's-new') + '">' + (SL[o.status] || o.status) + '</span>' +
-    '<span style="font-size:11px;color:#64748b">' + ago(o.created_at) + '</span>' +
+    '<div class="tr" onclick="openM('+o.id+')">' +
+    '<span class="on2">#'+o.id+'</span>' +
+    '<div><div style="font-weight:700;font-size:12px">'+(o.user_name||'?')+'</div>'+
+    '<div style="font-size:10px;color:#64748b;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:350px">'+o.items.map(i=>i.name_uz+'x'+i.qty).join(', ')+'</div></div>'+
+    '<span>'+(o.total||0).toLocaleString()+" so'm</span>"+
+    '<span style="color:#64748b;font-size:11px">'+(PL[o.payment]||o.payment)+'</span>'+
+    '<span class="sp '+(SC[o.status]||'s-new')+'">'+(SL[o.status]||o.status)+'</span>'+
+    '<span style="font-size:10px;color:#64748b">'+ago(o.created_at)+'</span>'+
     '</div>'
   ).join('');
 }
 
-function renderProds() {
-  document.getElementById('ptb').innerHTML = prods.length ? prods.map(p =>
-    '<div class="pr">' +
-    '<img class="pimg" src="' + (p.image || '') + '" onerror="this.src='https://via.placeholder.com/44'">' +
-    '<div style="flex:1">' +
-    '<div class="pn">' + p.name_uz + ' / ' + p.name_ru + '</div>' +
-    '<div class="pp">' + (p.price || 0).toLocaleString() + " so'm · " + (p.cat_name || '') + '</div></div>' +
-    '<button class="tb ' + (p.active ? 'ton' : 'tof') + '" style="margin-right:8px" onclick="togProd(' + p.id + ',' + p.active + ')">' + (p.active ? '✅ Faol' : '❌ Nofaol') + '</button>' +
-    '<button class="tb ton" onclick="editProd(' + p.id + ')">✏️ Tahrir</button>' +
-    '</div>'
-  ).join('') : '<div class="empty">Mahsulot yo'q</div>';
-}
-
-// --- PRODUCTS ---
-async function togProd(id, cur) {
+async function loadProds() {
+  const el = document.getElementById('ptb');
+  if (!el) return;
   try {
-    await apiFetch('/api/admin/products/' + id, { method:'PUT', headers:H, body:JSON.stringify({ active: cur ? 0 : 1 }) });
-    loadProds();
-  } catch(e) { showErr(e.message); }
+    prods = await apiFetch('/api/admin/products');
+    el.innerHTML = prods.length ? prods.map(p=>
+      '<div class="pr">'+
+      '<img class="pimg" src="'+(p.image||'')+'" onerror="this.src='https://via.placeholder.com/40'">'+
+      '<div style="flex:1"><div class="pn">'+p.name_uz+' / '+p.name_ru+'</div>'+
+      '<div class="pp">'+(p.price||0).toLocaleString()+" so'm · "+(p.cat_name||'')+'</div></div>'+
+      '<button class="tb '+(p.active?'ton':'tof')+'" style="margin-right:6px" onclick="togProd('+p.id+','+p.active+')">'+(p.active?'✅':'❌')+'</button>'+
+      '<button class="tb ton" onclick="editProd('+p.id+')">✏️</button>'+
+      '</div>'
+    ).join('') : '<div class="empty">Mahsulot yo'q</div>';
+  } catch(e) { el.innerHTML='<div class="empty">❌ '+e.message+'</div>'; }
 }
 
-function editProd(id) {
-  const p = prods.find(x => x.id === id);
-  if (!p) return;
-  document.getElementById('eid').value = id;
-  document.getElementById('fuz').value = p.name_uz || '';
-  document.getElementById('fru').value = p.name_ru || '';
-  document.getElementById('fduz').value = p.desc_uz || '';
-  document.getElementById('fdru').value = p.desc_ru || '';
-  document.getElementById('fprice').value = p.price || '';
-  document.getElementById('fcat').value = p.category_id || 1;
-  document.getElementById('fimg').value = p.image || '';
-  document.getElementById('ftitle').textContent = '✏️ Tahrirlash: ' + p.name_uz;
-  prevImg(p.image || '');
-  go('add');
+async function togProd(id, cur) {
+  try { await apiFetch('/api/admin/products/'+id,{method:'PUT',headers:H,body:JSON.stringify({active:cur?0:1})}); loadProds(); }
+  catch(e) { alert('Xatolik: '+e.message); }
 }
+
+function editProd(id) { editId=id; go('add'); }
 
 function prevImg(url) {
-  document.getElementById('pv').innerHTML = url ? '<img src="' + url + '" style="height:70px;border-radius:8px;margin-top:4px" onerror="this.style.display='none'">' : '';
+  const el = document.getElementById('pv');
+  if (el) el.innerHTML = url ? '<img src="'+url+'" style="height:65px;border-radius:8px;margin-top:4px" onerror="this.style.display='none'">' : '';
 }
-document.getElementById('fimg').oninput = function() { prevImg(this.value); };
 
 async function saveProd() {
-  const id = document.getElementById('eid').value;
+  const id = document.getElementById('eid')?.value;
   const data = {
-    name_uz: document.getElementById('fuz').value.trim(),
-    name_ru: document.getElementById('fru').value.trim(),
-    desc_uz: document.getElementById('fduz').value.trim(),
-    desc_ru: document.getElementById('fdru').value.trim(),
-    price: parseInt(document.getElementById('fprice').value) || 0,
-    category_id: parseInt(document.getElementById('fcat').value) || 1,
-    image: document.getElementById('fimg').value.trim(),
+    name_uz: document.getElementById('fuz')?.value?.trim(),
+    name_ru: document.getElementById('fru')?.value?.trim()||'',
+    desc_uz: document.getElementById('fduz')?.value?.trim()||'',
+    desc_ru: document.getElementById('fdru')?.value?.trim()||'',
+    price: parseInt(document.getElementById('fprice')?.value)||0,
+    category_id: parseInt(document.getElementById('fcat')?.value)||1,
+    image: document.getElementById('fimg')?.value?.trim()||'',
     active: 1
   };
-  if (!data.name_uz || !data.price) { showErr('Nomi va narxni kiriting!'); return; }
+  if (!data.name_uz||!data.price){alert('Nomi va narxni kiriting!');return;}
   try {
-    if (id) {
-      await apiFetch('/api/admin/products/' + id, { method:'PUT', headers:H, body:JSON.stringify(data) });
-      alert('✅ Yangilandi!');
-    } else {
-      await apiFetch('/api/admin/products', { method:'POST', headers:H, body:JSON.stringify(data) });
-      alert('✅ Qo'shildi!');
-    }
-    resetForm(); go('menu');
-  } catch(e) { showErr('Xatolik: ' + e.message); }
+    if (id) await apiFetch('/api/admin/products/'+id,{method:'PUT',headers:H,body:JSON.stringify(data)});
+    else await apiFetch('/api/admin/products',{method:'POST',headers:H,body:JSON.stringify(data)});
+    alert('✅ Saqlandi!');
+    editId=null; go('menu');
+  } catch(e){alert('Xatolik: '+e.message);}
 }
 
-function resetForm() {
-  document.getElementById('eid').value = '';
-  ['fuz','fru','fduz','fdru','fimg'].forEach(id => { document.getElementById(id).value = ''; });
-  document.getElementById('fprice').value = '';
-  document.getElementById('fcat').value = '1';
-  document.getElementById('pv').innerHTML = '';
-  document.getElementById('ftitle').textContent = '➕ Ovqat qo'shish';
-}
-
-// --- ORDER MODAL ---
 function openM(id) {
-  const o = orders.find(x => x.id === id);
-  if (!o) return;
-  document.getElementById('mtitle').textContent = 'Buyurtma #' + o.id;
-  document.getElementById('modal').style.display = 'flex';
-  const iH = o.items.map(i =>
-    '<div class="ir"><span>' + i.name_uz + ' × ' + i.qty + '</span><span>' + (i.price * i.qty).toLocaleString() + " so'm</span></div>"
-  ).join('') + '<div class="ir"><span>Jami</span><span style="color:#e63946">' + (o.total||0).toLocaleString() + " so'm</span></div>";
-  document.getElementById('mbody').innerHTML =
-    '<div class="dl">Mijoz</div><div class="dv">' + (o.user_name||'-') + ' | ' + (o.user_phone||'-') + '</div>' +
-    (o.address ? '<div class="dl">Manzil</div><div class="dv">📍 ' + o.address + '</div>' : '') +
-    (o.comment ? '<div class="dl">Izoh</div><div class="dv">💬 ' + o.comment + '</div>' : '') +
-    '<div class="dl">Buyurtma</div><div class="ib">' + iH + '</div>' +
-    (o.lat && o.lng ? '<div class="dl">Xarita</div><div id="omap"></div>' : '') +
-    '<div class="dl">Kuryer tayinlash</div>' +
-    '<select class="cs" id="csel"><option value="">-- Tanlang --</option>' +
-    couriers.map(c => '<option value="' + c.telegram_id + '" ' + (o.courier_id===c.telegram_id?'selected':'') + '>' + c.first_name + ' ' + (c.last_name||'') + '</option>').join('') + '</select>' +
-    '<div class="dl">Status</div>' +
-    '<select class="ss" id="ssel">' + Object.entries(SL).map(([v,l]) => '<option value="' + v + '" ' + (o.status===v?'selected':'') + '>' + l + '</option>').join('') + '</select>' +
-    '<button class="ab ab-p" onclick="updOrd(' + o.id + ')">💾 Saqlash va bildirishnoma</button>' +
-    (o.lat&&o.lng ? '<button class="ab ab-g" style="margin-top:6px" onclick="window.open('https://www.google.com/maps?q=' + o.lat + ',' + o.lng + '','_blank')">🗺 Google Maps</button>' : '');
-  if (o.lat && o.lng) {
-    setTimeout(() => {
-      const m = L.map('omap').setView([o.lat, o.lng], 15);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(m);
-      L.marker([o.lat, o.lng]).addTo(m).bindPopup(o.user_name || 'Mijoz').openPopup();
-    }, 100);
-  }
+  const o = orders.find(x=>x.id===id);
+  if(!o) return;
+  document.getElementById('mtitle').textContent='Buyurtma #'+o.id;
+  document.getElementById('modal').style.display='flex';
+  const iH = o.items.map(i=>'<div class="ir"><span>'+i.name_uz+' × '+i.qty+'</span><span>'+(i.price*i.qty).toLocaleString()+" so'm</span></div>").join('')
+    +'<div class="ir"><span>Jami</span><span style="color:#e63946">'+(o.total||0).toLocaleString()+" so'm</span></div>";
+  document.getElementById('mbody').innerHTML=
+    '<div class="dl">Mijoz</div><div class="dv">'+(o.user_name||'-')+' | '+(o.user_phone||'-')+'</div>'+
+    (o.address?'<div class="dl">Manzil</div><div class="dv">📍 '+o.address+'</div>':'')+
+    (o.comment?'<div class="dl">Izoh</div><div class="dv">💬 '+o.comment+'</div>':'')+
+    '<div class="dl">Buyurtma</div><div class="ib">'+iH+'</div>'+
+    (o.lat&&o.lng?'<div class="dl">Xarita</div><div id="omap"></div>':'')+
+    '<div class="dl">Kuryer</div><select class="cs" id="csel"><option value="">-- Tanlang --</option>'+
+    couriers.map(c=>'<option value="'+c.telegram_id+'" '+(o.courier_id===c.telegram_id?'selected':'')+'>'+(c.first_name||'')+' '+(c.last_name||'')+'</option>').join('')+'</select>'+
+    '<div class="dl">Status</div><select class="ss" id="ssel">'+
+    Object.entries(SL).map(([v,l])=>'<option value="'+v+'" '+(o.status===v?'selected':'')+'>'+l+'</option>').join('')+'</select>'+
+    '<button class="ab ab-p" onclick="updOrd('+o.id+')">💾 Saqlash va bildirishnoma</button>'+
+    (o.lat&&o.lng?'<button class="ab ab-g" style="margin-top:6px" onclick="window.open('https://www.google.com/maps?q='+o.lat+','+o.lng+'','_blank')">🗺 Google Maps</button>':'');
+  if (o.lat&&o.lng) setTimeout(()=>{
+    const m=L.map('omap').setView([o.lat,o.lng],15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(m);
+    L.marker([o.lat,o.lng]).addTo(m).bindPopup(o.user_name||'Mijoz').openPopup();
+  },100);
 }
-
-async function updOrd(id) {
-  try {
-    const s = document.getElementById('ssel').value;
-    const cid = document.getElementById('csel').value;
-    const c = couriers.find(x => x.telegram_id === cid);
-    await apiFetch('/api/admin/orders/' + id, { method:'PUT', headers:H, body:JSON.stringify({
-      status: s, courier_id: cid||null, courier_name: c?(c.first_name+' '+(c.last_name||'')).trim():null
-    })});
-    closeM(); loadAll();
-  } catch(e) { showErr('Xatolik: ' + e.message); }
+async function updOrd(id){
+  try{
+    const s=document.getElementById('ssel')?.value;
+    const cid=document.getElementById('csel')?.value;
+    const c=couriers.find(x=>x.telegram_id===cid);
+    await apiFetch('/api/admin/orders/'+id,{method:'PUT',headers:H,body:JSON.stringify({status:s,courier_id:cid||null,courier_name:c?(c.first_name+' '+(c.last_name||'')).trim():null})});
+    closeM();loadAll();
+  }catch(e){alert('Xatolik: '+e.message);}
 }
+function closeM(){document.getElementById('modal').style.display='none';}
 
-function closeM() { document.getElementById('modal').style.display = 'none'; }
-
-// --- MAP ---
-function buildMap() {
-  if (!fmap) {
-    fmap = L.map('fullMap').setView([41.2995, 69.2401], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(fmap);
-  }
-  setTimeout(() => { fmap.invalidateSize(); }, 200);
-  orders.filter(o => ['new','accepted','cooking','on_way'].includes(o.status) && o.lat && o.lng).forEach(o => {
-    L.marker([o.lat, o.lng]).addTo(fmap)
-      .bindPopup('<b>#' + o.id + '</b> ' + (o.user_name||'') + '<br>' + (SL[o.status]||'') + '<br>' + (o.total||0).toLocaleString() + " so'm");
+function buildMap(){
+  if(!fmap){fmap=L.map('fullMap').setView([41.2995,69.2401],12);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(fmap);}
+  setTimeout(()=>fmap.invalidateSize(),200);
+  orders.filter(o=>['new','accepted','cooking','on_way'].includes(o.status)&&o.lat&&o.lng).forEach(o=>{
+    L.marker([o.lat,o.lng]).addTo(fmap).bindPopup('<b>#'+o.id+'</b> '+(o.user_name||'')+'<br>'+(SL[o.status]||'')+'<br>'+(o.total||0).toLocaleString()+" so'm");
   });
 }
 
-function ago(dt) {
-  if (!dt) return '-';
-  const d = (Date.now() - new Date(dt).getTime()) / 60000;
-  return d < 1 ? 'Hozir' : d < 60 ? Math.floor(d) + ' daq' : Math.floor(d/60) + ' soat';
+function ago(dt){
+  if(!dt)return'-';
+  const d=(Date.now()-new Date(dt).getTime())/60000;
+  return d<1?'Hozir':d<60?Math.floor(d)+' daq':Math.floor(d/60)+' soat';
 }
 
-// INIT
+// START
 if (!UID) {
-  showErr('UID topilmadi! Botdan Admin Panel tugmasini bosing.');
+  document.getElementById('main-content').innerHTML = '<div style="padding:20px;color:#e63946;font-weight:700">⚠️ UID topilmadi! Botdan "Admin Panel" tugmasini bosing.</div>';
 } else {
-  loadAll();
-  setInterval(loadAll, 30000);
+  go('dash');
+  setInterval(()=>{ if(curPage==='dash')loadAll(); else if(curPage==='orders')loadOrdersData().then(()=>renderOrders(cFilt)); }, 30000);
 }
 </script>
 </body></html>
