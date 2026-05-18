@@ -133,7 +133,7 @@ textarea.inp{min-height:60px;resize:none}
       </div>
     </div>
     <div class="pay-info show" id="pay-info">
-      &#128241; Click yoki Payme ilovangizdan to'laysiz. Buyurtma yuborilgach, bot sizga to'lov tafsilotlarini yuboradi.
+      &#128181; Kuryerga naqd pul bering yoki Click/Payme ilovangizdan to'lang.
     </div>
   </div>
   <div class="form-box">
@@ -161,7 +161,7 @@ if(tg) tg.expand();
 const UID = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? String(tg.initDataUnsafe.user.id) : '';
 const H = {'Content-Type':'application/json','x-telegram-id':UID};
 
-let cart = {}, cats = [], prods = [], payInfo = {}, selPay = 'click', userLat = null, userLng = null;
+let cart = {}, cats = [], prods = [], selPay = 'click', userLat = null, userLng = null;
 
 // Init
 fetch('/api/menu').then(r=>r.json()).then(data=>{
@@ -170,8 +170,6 @@ fetch('/api/menu').then(r=>r.json()).then(data=>{
   renderCats();
   renderMenu();
 }).catch(()=>{});
-
-fetch('/api/payment-info').then(r=>r.json()).then(d=>{ payInfo = d; }).catch(()=>{});
 
 if(UID) {
   fetch('/api/user',{method:'POST',headers:H,body:JSON.stringify({
@@ -318,14 +316,12 @@ function selectPay(method, el) {
   const info = document.getElementById('pay-info');
   if(method === 'cash') {
     info.innerHTML = '&#128181; Kuryerga naqd pul bering.';
-    info.classList.add('show');
   } else if(method === 'click') {
-    info.innerHTML = "&#128241; Click ilovangiz orqali to'laysiz. Buyurtma yuborilgach, bot sizga to'lov tafsilotlarini yuboradi.";
-    info.classList.add('show');
+    info.innerHTML = "&#128241; Click ilovangiz orqali to'lang.";
   } else if(method === 'payme') {
-    info.innerHTML = "&#128179; Payme ilovangiz orqali to'laysiz. Buyurtma yuborilgach, bot sizga to'lov tafsilotlarini yuboradi.";
-    info.classList.add('show');
+    info.innerHTML = "&#128179; Payme ilovangiz orqali to'lang.";
   }
+  info.classList.add('show');
 }
 
 // GPS
@@ -377,13 +373,7 @@ async function submitOrder() {
     if(data.ok) {
       cart = {}; updateUI();
       closePage('pg-checkout');
-      let msg = '';
-      if(selPay === 'cash') {
-        msg = 'Kuryerimiz tez orada yetib boradi. &#128757;';
-      } else {
-        msg = "&#128241; Bot orqali to'lov instruksiyasini olasiz. To'lov qilib, chekni botga yuboring.";
-      }
-      document.getElementById('success-msg').innerHTML = msg;
+      document.getElementById('success-msg').innerHTML = 'Kuryerimiz tez orada yetib boradi. &#128757;';
       openPage('pg-success');
     } else {
       btn.disabled = false; btn.textContent = '&#9989; Buyurtma berish';

@@ -11,10 +11,6 @@ const APP_URL = process.env.APP_URL || 'http://localhost:' + PORT;
 const ADMIN_IDS = (process.env.ADMIN_CHAT_ID || '').split(',').map(s=>s.trim()).filter(Boolean);
 const COURIER_IDS = (process.env.COURIER_IDS || '').split(',').map(s=>s.trim()).filter(Boolean);
 
-// To'lov ma'lumotlari (Railway Variables da o'rnating)
-const CLICK_PHONE = process.env.CLICK_PHONE || '+998901234567';
-const PAYME_PHONE = process.env.PAYME_PHONE || '+998901234567';
-
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -50,80 +46,29 @@ bot.start(ctx => {
   ]));
 });
 
-// To'lov screenshot qabul qilish
-bot.on('photo', async ctx => {
-  const userId = String(ctx.from.id);
-  const order = db.prepare("SELECT * FROM orders WHERE user_id=? AND payment!='cash' AND payment_status='pending' ORDER BY created_at DESC LIMIT 1").get(userId);
-  if (!order) return;
-
-  const photoId = ctx.message.photo[ctx.message.photo.length-1].file_id;
-  db.prepare("UPDATE orders SET payment_status='checking' WHERE id=?").run(order.id);
-
-  const pLabel = order.payment === 'click' ? '📱 Click' : '💳 Payme';
-  const text = "📸 To'lov cheki keldi!\n\n👤 "+order.user_name+"\n📦 Buyurtma #"+order.id+"\n💰 "+order.total.toLocaleString()+" so'm\n"+pLabel;
-
-  for (const adminId of ADMIN_IDS) {
-    try {
-      await bot.telegram.sendPhoto(adminId, photoId, {
-        caption: text,
-        reply_markup: Markup.inlineKeyboard([
-          [
-            Markup.button.callback('✅ Tasdiqlandi', 'pay_ok_'+order.id),
-            Markup.button.callback('❌ Rad etish', 'pay_no_'+order.id)
-          ]
-        ]).reply_markup
-      });
-    } catch(e) {}
-  }
-  ctx.reply("✅ To'lov cheki qabul qilindi!\n⏳ Admin tasdiqlashini kuting...");
-});
-
-bot.action(/^pay_ok_(\d+)$/, async ctx => {
-  const orderId = parseInt(ctx.match[1]);
-  db.prepare("UPDATE orders SET payment_status='paid', updated_at=CURRENT_TIMESTAMP WHERE id=?").run(orderId);
-  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(orderId);
-  if (order) {
-    try {
-      await bot.telegram.sendMessage(order.user_id, "✅ To'lovingiz tasdiqlandi!\n🍔 Buyurtmangiz tayyorlanmoqda...");
-    } catch(e) {}
-    notifyAdmin(order, true);
-  }
-  ctx.answerCbQuery('✅ Tasdiqlandi');
-  try { ctx.editMessageCaption((ctx.callbackQuery.message.caption||'') + '\n\n✅ TASDIQLANDI'); } catch(e) {}
-});
-
-bot.action(/^pay_no_(\d+)$/, async ctx => {
-  const orderId = parseInt(ctx.match[1]);
-  db.prepare("UPDATE orders SET payment_status='rejected', updated_at=CURRENT_TIMESTAMP WHERE id=?").run(orderId);
-  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(orderId);
-  if (order) {
-    try {
-      await bot.telegram.sendMessage(order.user_id, "❌ To'lov tasdiqlanmadi.\nIltimos qayta urinib ko'ring yoki biz bilan bog'laning.");
-    } catch(e) {}
-  }
-  ctx.answerCbQuery('❌ Rad etildi');
-  try { ctx.editMessageCaption((ctx.callbackQuery.message.caption||'') + '\n\n❌ RAD ETILDI'); } catch(e) {}
-});
-
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 
-function notifyAdmin(order, isPaymentConfirm) {
+function paymentLabel(order) {
+  const method = order.payment==='cash' ? "Naqd" : order.payment==='click' ? "Click" : "Payme";
+  if (order.payment==='cash') return "💵 Naqd (yetkazganda to'lanadi)";
+  if (order.payment_status==='paid') return "✅ "+method+" — To'langan";
+  if (order.payment_status==='rejected') return "❌ "+method+" — To'lov amalga oshmadi";
+  return "⏳ "+method+" — To'lov kutilmoqda";
+}
+
+function notifyAdmin(order) {
   const items = JSON.parse(order.items);
-  let t = isPaymentConfirm
-    ? "💰 TO'LOV TASDIQLANDI — Buyurtma #"+order.id+"\n\n"
-    : '🆕 YANGI BUYURTMA #'+order.id+'\n\n';
+  let t = '🆕 YANGI BUYURTMA #'+order.id+'\n\n';
   t += (order.user_name||'-')+' | '+(order.user_phone||'-')+'\n';
   items.forEach(i => { t += '▪ '+i.name_uz+' × '+i.qty+' = '+(i.price*i.qty).toLocaleString()+" so'm\n"; });
   t += '\nJami: '+order.total.toLocaleString()+" so'm";
-  const pLabel = order.payment==='cash' ? '💵 Naqd' : order.payment==='click' ? '📱 Click' : '💳 Payme';
-  t += '\n'+pLabel;
-  if (order.payment_status==='paid') t += " ✅ TO'LANGAN";
+  t += '\n'+paymentLabel(order);
   if (order.comment) t += '\n💬 '+order.comment;
   if (order.address) t += '\n📍 '+order.address;
 
   ADMIN_IDS.forEach(id => {
     bot.telegram.sendMessage(id, t).catch(()=>{});
-    if (!isPaymentConfirm && order.lat && order.lng) {
+    if (order.lat && order.lng) {
       bot.telegram.sendLocation(id, order.lat, order.lng).catch(()=>{});
     }
   });
@@ -146,18 +91,15 @@ function notifyCustomer(order) {
     on_way: "🛵 Kuryer yo'lda! Tez orada yetkaziladi.",
     delivered: '🎉 Buyurtma yetkazildi! Rahmat!'
   };
-  if (m[order.status]) bot.telegram.sendMessage(order.user_id, m[order.status]).catch(()=>{});
+  if (!m[order.status]) return;
+  let msg = m[order.status];
+  if (order.status==='on_way' || order.status==='delivered') {
+    msg += "\n\n💳 To'lov: "+paymentLabel(order);
+  }
+  bot.telegram.sendMessage(order.user_id, msg).catch(()=>{});
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
-
-// To'lov ma'lumotlari (mijoz uchun)
-app.get('/api/payment-info', (req, res) => {
-  res.json({
-    click: { phone: CLICK_PHONE },
-    payme: { phone: PAYME_PHONE }
-  });
-});
 
 app.get('/api/menu', (req, res) => {
   const cats = db.prepare('SELECT * FROM categories WHERE active=1 ORDER BY sort_order').all();
@@ -178,7 +120,6 @@ app.post('/api/user', (req, res) => {
 app.post('/api/orders', async (req, res) => {
   const { user_id, user_name, user_phone, items, total, address, lat, lng, comment, payment } = req.body;
 
-  // Faqat naqd, click, payme ruxsat
   const allowed = ['cash', 'click', 'payme'];
   if (!allowed.includes(payment)) return res.status(400).json({ error: 'Invalid payment method' });
 
@@ -186,20 +127,7 @@ app.post('/api/orders', async (req, res) => {
     .run(user_id, user_name, user_phone, JSON.stringify(items), total, address, lat, lng, comment, payment);
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(r.lastInsertRowid);
 
-  notifyAdmin(order, false);
-
-  // Click/Payme bo'lsa — to'lov instruksiyasi
-  if (payment !== 'cash' && user_id && user_id !== 'anon') {
-    let payMsg = '';
-    if (payment === 'click') {
-      payMsg = `💳 Click orqali to'lov:\n\n📱 Telefon raqam: ${CLICK_PHONE}\n💰 Summa: ${total.toLocaleString()} so'm\n📝 Izoh: Buyurtma #${r.lastInsertRowid}\n\n1️⃣ Click ilovasini oching\n2️⃣ "Pul o'tkazma" → telefon raqamni kiriting\n3️⃣ To'lovni tasdiqlang\n4️⃣ Chek (screenshot) shu chatga yuboring ✅`;
-    } else if (payment === 'payme') {
-      payMsg = `💳 Payme orqali to'lov:\n\n📱 Telefon raqam: ${PAYME_PHONE}\n💰 Summa: ${total.toLocaleString()} so'm\n📝 Izoh: Buyurtma #${r.lastInsertRowid}\n\n1️⃣ Payme ilovasini oching\n2️⃣ "Pul jo'natish" → telefon raqamni kiriting\n3️⃣ To'lovni tasdiqlang\n4️⃣ Chek (screenshot) shu chatga yuboring ✅`;
-    }
-    if (payMsg) {
-      bot.telegram.sendMessage(user_id, payMsg).catch(()=>{});
-    }
-  }
+  notifyAdmin(order);
 
   res.json({ ok: true, order_id: r.lastInsertRowid });
 });
