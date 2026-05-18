@@ -1,43 +1,398 @@
 <!DOCTYPE html>
-<html lang="uz"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><title>Buono Burger</title>
+<html lang="uz"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Buono Burger</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<style>*{margin:0;padding:0;box-sizing:border-box}:root{--primary:#e63946;--bg:#f5f5f5;--card:#fff;--text:#1a1a1a;--gray:#6b7280;--border:#e5e7eb;--r:14px}body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);max-width:500px;margin:0 auto}.hidden{display:none!important}.header{background:var(--primary);color:#fff;padding:14px 16px 10px;position:sticky;top:0;z-index:100}.header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.logo{font-size:18px;font-weight:800}.lang-btn,.cart-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:5px 12px;border-radius:20px;font-size:13px;cursor:pointer;font-weight:600}.cart-btn{display:flex;align-items:center;gap:6px}.cart-count{background:#fff;color:var(--primary);border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}.cats{display:flex;gap:8px;overflow-x:auto;padding:10px 16px;background:#fff;border-bottom:1px solid var(--border)}.cats::-webkit-scrollbar{display:none}.cat-btn{flex-shrink:0;padding:6px 14px;border-radius:20px;border:2px solid var(--border);background:#fff;font-size:13px;font-weight:600;cursor:pointer}.cat-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}.products{padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:12px}.product-card{background:var(--card);border-radius:var(--r);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)}.product-img{width:100%;height:130px;object-fit:cover}.product-info{padding:9px}.product-name{font-size:13px;font-weight:700;margin-bottom:2px}.product-desc{font-size:11px;color:var(--gray);margin-bottom:7px}.product-footer{display:flex;align-items:center;justify-content:space-between}.product-price{font-size:13px;font-weight:800;color:var(--primary)}.add-btn{background:var(--primary);color:#fff;border:none;width:28px;height:28px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}.qty-ctrl{display:flex;align-items:center;gap:5px}.qty-ctrl button{background:var(--primary);color:#fff;border:none;width:24px;height:24px;border-radius:50%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}.qty-ctrl span{font-size:13px;font-weight:700;min-width:14px;text-align:center}.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:500px;background:#fff;border-top:1px solid var(--border);display:flex;z-index:100}.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:8px 0;cursor:pointer;color:var(--gray);font-size:10px;gap:2px;border:none;background:none}.nav-item.active{color:var(--primary)}.nav-item svg{width:20px;height:20px}.page{padding-bottom:68px}.cart-list,.orders-list,.checkout-form{padding:12px 16px}.cart-item{background:#fff;border-radius:var(--r);padding:10px;margin-bottom:8px;display:flex;align-items:center;gap:10px;box-shadow:0 1px 3px rgba(0,0,0,.07)}.cart-item-img{width:55px;height:55px;border-radius:8px;object-fit:cover}.cart-item-info{flex:1}.cart-item-name{font-size:13px;font-weight:700;margin-bottom:4px}.cart-item-price{font-size:12px;color:var(--primary);font-weight:600}.remove-btn{background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer}.cart-summary{background:#fff;border-radius:var(--r);padding:14px;margin:0 16px 10px;box-shadow:0 1px 3px rgba(0,0,0,.07)}.summary-row{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px}.summary-row.total{font-weight:800;font-size:15px;border-top:1px solid var(--border);padding-top:8px}.order-btn{display:block;background:var(--primary);color:#fff;border:none;width:calc(100% - 32px);margin:0 16px 14px;padding:14px;border-radius:var(--r);font-size:15px;font-weight:700;cursor:pointer}.order-btn:disabled{opacity:.5}.form-group{margin-bottom:12px}.form-label{font-size:12px;font-weight:600;color:var(--gray);margin-bottom:5px;display:block}.form-input{width:100%;padding:12px;border:2px solid var(--border);border-radius:var(--r);font-size:14px;outline:none}.form-input:focus{border-color:var(--primary)}.payment-opts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.payment-opt{border:2px solid var(--border);border-radius:10px;padding:8px 4px;text-align:center;cursor:pointer}.payment-opt.selected{border-color:var(--primary);background:#fff5f5}.payment-opt span{display:block;font-size:11px;font-weight:600;margin-top:3px}.payment-opt .icon{font-size:20px}.loc-btn{width:100%;padding:12px;border:2px dashed var(--border);border-radius:var(--r);background:#f9fafb;font-size:13px;cursor:pointer;color:var(--gray);text-align:left;display:flex;align-items:center;gap:8px}.loc-btn.set{border-color:var(--primary);color:var(--primary)}.order-card{background:#fff;border-radius:var(--r);padding:12px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.07)}.order-header{display:flex;justify-content:space-between;margin-bottom:6px}.order-id{font-weight:800;font-size:14px}.status-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}.s-new{background:#fef3c7;color:#92400e}.s-accepted{background:#dbeafe;color:#1e40af}.s-cooking{background:#fce7f3;color:#9d174d}.s-on_way{background:#d1fae5;color:#065f46}.s-delivered{background:#f0fdf4;color:#166534}.order-items{font-size:12px;color:var(--gray);margin-bottom:6px}.order-total{font-weight:700;font-size:14px;color:var(--primary)}.profile-card{background:#fff;border-radius:var(--r);padding:20px;margin:12px 16px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.07)}.avatar{width:64px;height:64px;border-radius:50%;background:var(--primary);color:#fff;font-size:26px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}.profile-name{font-size:17px;font-weight:700}.profile-username{color:var(--gray);font-size:13px}.toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%) translateY(100px);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;transition:.3s;opacity:0;z-index:999}.toast.show{transform:translateX(-50%) translateY(0);opacity:1}.empty{text-align:center;padding:50px 20px;color:var(--gray)}.empty-icon{font-size:50px;margin-bottom:12px}.empty h3{font-size:16px;font-weight:700;color:var(--text)}</style></head>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f8fafc;color:#1e293b;padding-bottom:80px}
+.hdr{background:linear-gradient(135deg,#e63946,#c1121f);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between}
+.hdr h1{font-size:18px;font-weight:800}
+.cart-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px}
+.cats{display:flex;gap:8px;padding:12px 16px;overflow-x:auto;scrollbar-width:none;position:sticky;top:52px;background:#f8fafc;z-index:40;border-bottom:1px solid #e2e8f0}
+.cats::-webkit-scrollbar{display:none}
+.cat-btn{white-space:nowrap;padding:6px 14px;border-radius:20px;border:2px solid #e2e8f0;background:#fff;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;transition:.15s}
+.cat-btn.on{background:#e63946;color:#fff;border-color:#e63946}
+.section{padding:12px 16px 4px}
+.sec-title{font-size:14px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
+.card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.card img{width:100%;height:110px;object-fit:cover;display:block;background:#f1f5f9}
+.card-body{padding:9px 10px}
+.card-name{font-size:13px;font-weight:700;margin-bottom:2px;line-height:1.3}
+.card-price{font-size:13px;color:#e63946;font-weight:800}
+.add-btn{width:100%;margin-top:7px;padding:7px;background:#e63946;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:.15s}
+.add-btn:active{transform:scale(.97)}
+.in-cart{display:flex;align-items:center;justify-content:space-between;margin-top:7px}
+.qty-btn{width:28px;height:28px;border-radius:8px;border:none;background:#f1f5f9;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.qty-num{font-weight:800;font-size:14px}
+.bottom-bar{position:fixed;bottom:0;left:0;right:0;padding:10px 16px;background:#fff;border-top:1px solid #e2e8f0;z-index:50}
+.checkout-btn{width:100%;padding:14px;background:#e63946;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:space-between}
+.checkout-btn:disabled{background:#94a3b8;cursor:default}
+/* CART PAGE */
+.page{display:none;position:fixed;inset:0;background:#f8fafc;overflow-y:auto;z-index:100}
+.page.show{display:block}
+.page-hdr{background:linear-gradient(135deg,#e63946,#c1121f);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10}
+.back-btn{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0}
+.page-hdr h2{font-size:17px;font-weight:800}
+.cart-item{background:#fff;margin:10px 16px;border-radius:12px;padding:12px;display:flex;gap:10px;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.cart-img{width:56px;height:56px;border-radius:8px;object-fit:cover;flex-shrink:0;background:#f1f5f9}
+.cart-info{flex:1}
+.cart-name{font-size:13px;font-weight:700;margin-bottom:3px}
+.cart-price{font-size:13px;color:#e63946;font-weight:800}
+.cart-qty{display:flex;align-items:center;gap:8px;margin-top:5px}
+.del-btn{background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8}
+.total-box{background:#fff;margin:0 16px;border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.total-row{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px}
+.total-row.big{font-size:16px;font-weight:800;border-top:1px solid #e2e8f0;padding-top:8px;margin-top:4px}
+/* CHECKOUT */
+.form-box{background:#fff;margin:10px 16px;border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.form-box h3{font-size:14px;font-weight:700;margin-bottom:10px;color:#64748b}
+.inp{width:100%;padding:11px 13px;border:2px solid #e2e8f0;border-radius:10px;font-size:14px;outline:none;font-family:inherit;transition:.15s}
+.inp:focus{border-color:#e63946}
+.inp+.inp{margin-top:8px}
+textarea.inp{min-height:60px;resize:none}
+/* Payment options */
+.pay-opts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.pay-opt{border:2px solid #e2e8f0;border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;transition:.15s;background:#fff}
+.pay-opt.on{border-color:#e63946;background:#fff5f5}
+.pay-opt .pay-icon{font-size:22px;margin-bottom:4px}
+.pay-opt .pay-name{font-size:11px;font-weight:700;color:#475569}
+.pay-opt.on .pay-name{color:#e63946}
+.pay-info{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:11px 13px;margin-top:8px;font-size:13px;color:#166534;line-height:1.5;display:none}
+.pay-info.show{display:block}
+.submit-btn{width:100%;padding:15px;background:#e63946;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;margin-top:4px}
+.submit-btn:disabled{background:#94a3b8;cursor:default}
+.empty{text-align:center;padding:50px 20px;color:#94a3b8}
+.empty .icon{font-size:52px;margin-bottom:12px}
+.empty p{font-size:15px;font-weight:600}
+.loc-btn{width:100%;padding:11px;border:2px solid #e2e8f0;border-radius:10px;background:#fff;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;color:#475569;margin-top:8px}
+.loc-btn.got{border-color:#22c55e;color:#166534;background:#f0fdf4}
+.success{text-align:center;padding:40px 20px}
+.success .icon{font-size:64px;margin-bottom:16px}
+.success h2{font-size:22px;font-weight:800;margin-bottom:8px}
+.success p{font-size:14px;color:#64748b;line-height:1.6}
+</style></head>
 <body>
-<div class="header"><div class="header-top"><div class="logo">🍔 Buono Burger</div><div style="display:flex;gap:8px"><button class="lang-btn" onclick="toggleLang()" id="langBtn">RU</button><button class="cart-btn" onclick="showPage('cart')">🛒 <span id="cartTotal">0</span> so'm <span class="cart-count" id="cartCount">0</span></button></div></div></div>
-<div id="page-menu" class="page"><div class="cats" id="catList"></div><div class="products" id="productList"></div></div>
-<div id="page-cart" class="page hidden"><div class="cart-list" id="cartList"></div><div id="cartSummary"></div></div>
-<div id="page-checkout" class="page hidden"><div class="checkout-form"><div class="form-group"><label class="form-label">🚚 Yetkazib berish usuli</label><div class="payment-opts" style="grid-template-columns:1fr 1fr"><div class="payment-opt selected" onclick="selectDelivery('delivery',this)"><div class="icon">🛵</div><span>Yetkazib berish</span></div><div class="payment-opt" onclick="selectDelivery('pickup',this)"><div class="icon">🏃</div><span>O'zi olib ketish</span></div></div></div><div class="form-group"><label class="form-label">📞 Telefon raqam</label><input class="form-input" id="phoneInput" type="tel" placeholder="+998 90 123 45 67"></div><div class="form-group" id="addrGroup"><label class="form-label">📍 Manzil</label><button class="loc-btn" id="locBtn" onclick="getLocation()">📍 <span id="locText">Joylashuvni yuborish</span></button><input class="form-input" id="addressInput" placeholder="Yoki manzilni yozing..." style="margin-top:8px"></div><div class="form-group hidden" id="pickupBox"><label class="form-label">🏠 Olib ketish manzili</label><div style="background:#fff5f5;border:2px solid #e63946;border-radius:14px;padding:12px;font-size:13px;font-weight:600" id="pickupAddrText">Yuklanmoqda...</div></div><div class="form-group"><label class="form-label">💳 To'lov usuli</label><div class="payment-opts"><div class="payment-opt selected" onclick="selectPayment('cash',this)"><div class="icon">💵</div><span>Naqd</span></div><div class="payment-opt" onclick="selectPayment('click',this)"><div class="icon">📱</div><span>Click</span></div><div class="payment-opt" onclick="selectPayment('payme',this)"><div class="icon">💳</div><span>Payme</span></div></div></div><div class="form-group"><label class="form-label">💬 Izoh</label><input class="form-input" id="commentInput" placeholder="Qo'shimcha so'rov..."></div><div style="background:#fff;border-radius:14px;padding:14px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.07)"><div id="checkoutSummary"></div></div><button class="order-btn" id="placeOrderBtn" onclick="placeOrder()">🚀 Buyurtma berish</button></div></div>
-<div id="page-orders" class="page hidden"><div class="orders-list" id="ordersList"></div></div>
-<div id="page-profile" class="page hidden"><div class="profile-card" id="profileCard"></div></div>
-<nav class="bottom-nav"><button class="nav-item active" onclick="showPage('menu')" id="nav-menu"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"/></svg><span>Menyu</span></button><button class="nav-item" onclick="showPage('cart')" id="nav-cart"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96C5 16.1 6.9 18 9 18h12v-2H9.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63H19c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1 1 0 0023.45 5H5.21l-.94-2H1zm16 16c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg><span>Savat</span></button><button class="nav-item" onclick="showPage('orders');loadOrders()" id="nav-orders"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg><span>Buyurtmalar</span></button><button class="nav-item" onclick="showPage('profile')" id="nav-profile"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span>Profil</span></button></nav>
-<div class="toast" id="toast"></div>
+
+<!-- MAIN PAGE -->
+<div id="pg-main">
+  <div class="hdr">
+    <h1>&#127828; Buono Burger</h1>
+    <button class="cart-btn" onclick="openCart()">&#128722; <span id="cart-count">0</span></button>
+  </div>
+  <div class="cats" id="cats"></div>
+  <div id="menu-body"></div>
+  <div class="bottom-bar">
+    <button class="checkout-btn" id="goto-cart" onclick="openCart()" disabled>
+      <span>&#128722; Savatcha</span>
+      <span id="cart-total-btn">0 so'm</span>
+    </button>
+  </div>
+</div>
+
+<!-- CART PAGE -->
+<div class="page" id="pg-cart">
+  <div class="page-hdr">
+    <button class="back-btn" onclick="closePage('pg-cart')">&#8592;</button>
+    <h2>&#128722; Savatcha</h2>
+  </div>
+  <div id="cart-body"></div>
+</div>
+
+<!-- CHECKOUT PAGE -->
+<div class="page" id="pg-checkout">
+  <div class="page-hdr">
+    <button class="back-btn" onclick="closePage('pg-checkout')">&#8592;</button>
+    <h2>&#128203; Buyurtma berish</h2>
+  </div>
+  <div class="form-box">
+    <h3>&#128100; Kontakt ma'lumotlari</h3>
+    <input class="inp" id="f-name" placeholder="Ismingiz" type="text">
+    <input class="inp" id="f-phone" placeholder="+998 90 123 45 67" type="tel">
+  </div>
+  <div class="form-box">
+    <h3>&#128205; Yetkazish manzili</h3>
+    <input class="inp" id="f-addr" placeholder="Ko'cha, uy raqami..." type="text">
+    <button class="loc-btn" id="loc-btn" onclick="getLocation()">&#128205; Joylashuvimni aniqlash (GPS)</button>
+  </div>
+  <div class="form-box">
+    <h3>&#128179; To'lov usuli</h3>
+    <div class="pay-opts">
+      <div class="pay-opt on" onclick="selectPay('click',this)">
+        <div class="pay-icon">&#128241;</div>
+        <div class="pay-name">Click</div>
+      </div>
+      <div class="pay-opt" onclick="selectPay('payme',this)">
+        <div class="pay-icon">&#128179;</div>
+        <div class="pay-name">Payme</div>
+      </div>
+      <div class="pay-opt" onclick="selectPay('cash',this)">
+        <div class="pay-icon">&#128181;</div>
+        <div class="pay-name">Naqd</div>
+      </div>
+    </div>
+    <div class="pay-info show" id="pay-info">
+      &#128241; Click yoki Payme ilovangizdan to'laysiz. Buyurtma yuborilgach, bot sizga to'lov tafsilotlarini yuboradi.
+    </div>
+  </div>
+  <div class="form-box">
+    <h3>&#128172; Izoh (ixtiyoriy)</h3>
+    <textarea class="inp" id="f-comment" placeholder="Qo'shimcha xohishlar..."></textarea>
+  </div>
+  <div style="padding:0 16px 20px">
+    <button class="submit-btn" id="submit-btn" onclick="submitOrder()">&#9989; Buyurtma berish</button>
+  </div>
+</div>
+
+<!-- SUCCESS PAGE -->
+<div class="page" id="pg-success">
+  <div class="success">
+    <div class="icon">&#127881;</div>
+    <h2>Buyurtma qabul qilindi!</h2>
+    <p id="success-msg">Bot orqali to'lov tafsilotlarini olasiz.</p>
+  </div>
+</div>
+
 <script>
-const tg=window.Telegram?.WebApp;if(tg){tg.expand();tg.setHeaderColor('#e63946');}
-let lang='uz',cart=JSON.parse(localStorage.getItem('cart')||'[]'),menu=[],activeCat=null,selectedPayment='cash',selectedDelivery='delivery',userLat=null,userLng=null,cfg={restaurant_lat:41.3588914,restaurant_lng:69.3366373,restaurant_address:"Yunusobod tumani, Gullola ko'chasi 13",delivery_radius_km:7};
-const ST={new:{uz:'Yangi',ru:'Новый',cls:'s-new'},accepted:{uz:'Qabul',ru:'Принят',cls:'s-accepted'},cooking:{uz:'Tayyorlanmoqda',ru:'Готовится',cls:'s-cooking'},on_way:{uz:"Yo'lda",ru:'В пути',cls:'s-on_way'},delivered:{uz:'Yetkazildi',ru:'Доставлен',cls:'s-delivered'},cancelled:{uz:'Bekor',ru:'Отменён',cls:'s-new'}};
-async function init(){try{cfg=await fetch('/api/config').then(r=>r.json());}catch(e){}const u=tg?.initDataUnsafe?.user;if(u)await fetch('/api/user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({telegram_id:String(u.id),first_name:u.first_name,last_name:u.last_name||'',username:u.username||''})});loadMenu();updateCartUI();}
-function haversineKm(lat1,lng1,lat2,lng2){const R=6371;const toRad=d=>d*Math.PI/180;const dLat=toRad(lat2-lat1);const dLng=toRad(lng2-lng1);const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(a));}
-function selectDelivery(m,el){selectedDelivery=m;document.querySelectorAll('#page-checkout .payment-opt').forEach(e=>{if(e.parentElement.parentElement===el.parentElement.parentElement)e.classList.remove('selected');});el.classList.add('selected');const addr=document.getElementById('addrGroup'),pu=document.getElementById('pickupBox');if(m==='pickup'){addr.classList.add('hidden');pu.classList.remove('hidden');document.getElementById('pickupAddrText').textContent='🏠 '+cfg.restaurant_address;}else{addr.classList.remove('hidden');pu.classList.add('hidden');}}
-function toggleLang(){lang=lang==='uz'?'ru':'uz';document.getElementById('langBtn').textContent=lang==='uz'?'RU':'UZ';if(menu.length)renderMenu();}
-async function loadMenu(){menu=await fetch('/api/menu').then(r=>r.json());if(menu.length){activeCat=menu[0].id;renderCats();renderMenu();}}
-function renderCats(){document.getElementById('catList').innerHTML=menu.map(c=>'<button class="cat-btn'+(c.id===activeCat?' active':'')+'" onclick="filterCat('+c.id+')">'+c.emoji+' '+c['name_'+lang]+'</button>').join('');}
-function filterCat(id){activeCat=id;renderCats();renderMenu();}
-function renderMenu(){const cat=menu.find(c=>c.id===activeCat);if(!cat)return;document.getElementById('productList').innerHTML=cat.products.map(p=>{const ic=cart.find(i=>i.id===p.id);return '<div class="product-card"><img class="product-img" src="'+p.image+'" loading="lazy"><div class="product-info"><div class="product-name">'+p['name_'+lang]+'</div><div class="product-desc">'+p['desc_'+lang]+'</div><div class="product-footer"><div class="product-price">'+p.price.toLocaleString()+" so'm</div>"+(ic?'<div class="qty-ctrl"><button onclick="changeQty('+p.id+',-1)">-</button><span>'+ic.qty+'</span><button onclick="changeQty('+p.id+',1)">+</button></div>':'<button class="add-btn" onclick="addToCart('+p.id+')">+</button>')+'</div></div></div>';}).join('');}
-function addToCart(id){const p=menu.flatMap(c=>c.products).find(p=>p.id===id);if(!p)return;const ex=cart.find(i=>i.id===id);if(ex)ex.qty++;else cart.push({id:p.id,name_uz:p.name_uz,name_ru:p.name_ru,price:p.price,image:p.image,qty:1});saveCart();updateCartUI();renderMenu();showToast('Added to cart');}
-function changeQty(id,d){const idx=cart.findIndex(i=>i.id===id);if(idx<0)return;cart[idx].qty+=d;if(cart[idx].qty<=0)cart.splice(idx,1);saveCart();updateCartUI();renderMenu();if(!document.getElementById('page-cart').classList.contains('hidden'))renderCart();}
-function removeFromCart(id){cart=cart.filter(i=>i.id!==id);saveCart();updateCartUI();renderCart();}
-function saveCart(){localStorage.setItem('cart',JSON.stringify(cart));}
-function cartTotal(){return cart.reduce((s,i)=>s+i.price*i.qty,0);}
-function cartCount(){return cart.reduce((s,i)=>s+i.qty,0);}
-function updateCartUI(){document.getElementById('cartTotal').textContent=cartTotal().toLocaleString();document.getElementById('cartCount').textContent=cartCount();}
-function renderCart(){if(!cart.length){document.getElementById('cartList').innerHTML='<div class="empty"><div class="empty-icon">🛒</div><h3>Savat bosh</h3></div>';document.getElementById('cartSummary').innerHTML='';return;}document.getElementById('cartList').innerHTML=cart.map(i=>'<div class="cart-item"><img class="cart-item-img" src="'+i.image+'"><div class="cart-item-info"><div class="cart-item-name">'+i['name_'+lang]+'</div><div class="qty-ctrl"><button onclick="changeQty('+i.id+',-1)">-</button><span>'+i.qty+'</span><button onclick="changeQty('+i.id+',1)">+</button></div><div class="cart-item-price">'+(i.price*i.qty).toLocaleString()+' so\'m</div></div><button class="remove-btn" onclick="removeFromCart('+i.id+')">x</button></div>').join('');document.getElementById('cartSummary').innerHTML='<div class="cart-summary"><div class="summary-row"><span>Mahsulotlar</span><span>'+cartTotal().toLocaleString()+' so\'m</span></div><div class="summary-row"><span>Yetkazib berish</span><span>Bepul</span></div><div class="summary-row total"><span>Jami</span><span>'+cartTotal().toLocaleString()+' so\'m</span></div></div><button class="order-btn" onclick="showPage(\'checkout\');renderCheckout()">Rasmiylashtirish</button>';}
-function renderCheckout(){document.getElementById('checkoutSummary').innerHTML='<div style="font-weight:700;margin-bottom:8px">Buyurtma:</div>'+cart.map(i=>'<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>'+i['name_'+lang]+' x'+i.qty+'</span><span>'+(i.price*i.qty).toLocaleString()+" so'm</span></div>").join('')+'<div style="border-top:1px solid #e5e7eb;padding-top:8px;margin-top:4px;display:flex;justify-content:space-between;font-weight:800"><span>Jami</span><span style="color:#e63946">'+cartTotal().toLocaleString()+" so'm</span></div>";}
-function selectPayment(m,el){selectedPayment=m;const grp=el.parentElement;grp.querySelectorAll('.payment-opt').forEach(e=>e.classList.remove('selected'));el.classList.add('selected');}
-function getLocation(){if(!navigator.geolocation)return showToast('Geolokatsiya mavjud emas');navigator.geolocation.getCurrentPosition(pos=>{const lat=pos.coords.latitude,lng=pos.coords.longitude;const dist=haversineKm(cfg.restaurant_lat,cfg.restaurant_lng,lat,lng);if(dist>cfg.delivery_radius_km){showToast('Manzilingiz '+dist.toFixed(1)+' km uzoqlikda. Radius: '+cfg.delivery_radius_km+' km');return;}userLat=lat;userLng=lng;document.getElementById('locBtn').classList.add('set');document.getElementById('locText').textContent='Joylashuv aniqlandi ('+dist.toFixed(1)+' km)';fetch('https://nominatim.openstreetmap.org/reverse?lat='+userLat+'&lon='+userLng+'&format=json').then(r=>r.json()).then(d=>{document.getElementById('addressInput').value=(d.display_name||'').split(',').slice(0,3).join(', ');}).catch(()=>{});},err=>{showToast("Joylashuvga ruxsat bering yoki O'zi olib ketishni tanlang");});}
-async function placeOrder(){const phone=document.getElementById('phoneInput').value.trim();if(!phone)return showToast('Telefon kiriting');if(selectedDelivery==='delivery'){const address=document.getElementById('addressInput').value.trim()||(userLat?'Lokatsiya orqali':'');if(!address&&!userLat)return showToast('Manzilni kiriting yoki joylashuvni yuboring');if(!userLat||!userLng)return showToast('Joylashuvni yuboring (radius tekshirish uchun zarur)');}const btn=document.getElementById('placeOrderBtn');btn.disabled=true;const u=tg?.initDataUnsafe?.user;const payload={user_id:u?String(u.id):'anon',user_name:u?(u.first_name+' '+(u.last_name||'')).trim():'Mehmon',user_phone:phone,items:cart,total:cartTotal(),address:document.getElementById('addressInput').value.trim(),lat:userLat,lng:userLng,comment:document.getElementById('commentInput').value.trim(),payment:selectedPayment,delivery_type:selectedDelivery};const res=await fetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(r=>r.json()).catch(()=>({error:'Tarmoq xatosi'}));if(res.ok){cart=[];saveCart();updateCartUI();showToast('Buyurtma qabul qilindi!');setTimeout(()=>{showPage('orders');loadOrders();},1200);if(selectedPayment==='click')window.open('https://my.click.uz','_blank');if(selectedPayment==='payme')window.open('https://checkout.paycom.uz','_blank');}else{showToast(res.error||'Xatolik');btn.disabled=false;}}
-async function loadOrders(){const u=tg?.initDataUnsafe?.user;if(!u){document.getElementById('ordersList').innerHTML='<div class="empty"><div class="empty-icon">🔒</div><h3>Telegram orqali kiring</h3></div>';return;}const orders=await fetch('/api/orders/my',{headers:{'x-telegram-id':String(u.id)}}).then(r=>r.json());document.getElementById('ordersList').innerHTML=orders.length?orders.map(o=>{const s=ST[o.status]||{uz:o.status,cls:'s-new'};return '<div class="order-card"><div class="order-header"><span class="order-id">#'+o.id+'</span><span class="status-badge '+s.cls+'">'+s[lang]+'</span></div><div class="order-items">'+o.items.map(i=>i.name_uz).join(', ')+'</div><div class="order-total">'+o.total.toLocaleString()+" so'm</div></div>";}).join(''):'<div class="empty"><div class="empty-icon">📋</div><h3>Buyurtma yoq</h3></div>';}
-function renderProfile(){const u=tg?.initDataUnsafe?.user;if(!u){document.getElementById('profileCard').innerHTML='<div class="empty"><h3>Telegram orqali kiring</h3></div>';return;}const name=(u.first_name+' '+(u.last_name||'')).trim();document.getElementById('profileCard').innerHTML='<div class="avatar">'+name[0]+'</div><div class="profile-name">'+name+'</div>'+(u.username?'<div class="profile-username">@'+u.username+'</div>':'');}
-function showPage(n){document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));document.getElementById('page-'+n).classList.remove('hidden');const el=document.getElementById('nav-'+n);if(el)el.classList.add('active');if(n==='cart')renderCart();if(n==='profile')renderProfile();}
-function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
-init();
-</script></body></html>
+const tg = window.Telegram && window.Telegram.WebApp;
+if(tg) tg.expand();
+
+const UID = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? String(tg.initDataUnsafe.user.id) : '';
+const H = {'Content-Type':'application/json','x-telegram-id':UID};
+
+let cart = {}, cats = [], prods = [], payInfo = {}, selPay = 'click', userLat = null, userLng = null;
+
+// Init
+fetch('/api/menu').then(r=>r.json()).then(data=>{
+  cats = data;
+  prods = data.flatMap(c=>c.products||[]);
+  renderCats();
+  renderMenu();
+}).catch(()=>{});
+
+fetch('/api/payment-info').then(r=>r.json()).then(d=>{ payInfo = d; }).catch(()=>{});
+
+if(UID) {
+  fetch('/api/user',{method:'POST',headers:H,body:JSON.stringify({
+    telegram_id:UID,
+    first_name:(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user)?tg.initDataUnsafe.user.first_name:'',
+    last_name:(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user)?tg.initDataUnsafe.user.last_name||'':'',
+    username:(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user)?tg.initDataUnsafe.user.username||'':''
+  })}).then(r=>r.json()).then(u=>{
+    if(u && u.first_name) document.getElementById('f-name').value = u.first_name + (u.last_name?' '+u.last_name:'');
+  }).catch(()=>{});
+}
+
+// Render
+function renderCats() {
+  const el = document.getElementById('cats');
+  el.innerHTML = '<button class="cat-btn on" onclick="filterCat(null,this)">Barchasi</button>' +
+    cats.map(c=>'<button class="cat-btn" onclick="filterCat('+c.id+',this)">'+c.name_uz+'</button>').join('');
+}
+
+function filterCat(id, btn) {
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderMenu(id);
+  if(id) {
+    const sec = document.getElementById('sec-'+id);
+    if(sec) sec.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+}
+
+function renderMenu(catId) {
+  const el = document.getElementById('menu-body');
+  const show = catId ? cats.filter(c=>c.id===catId) : cats;
+  el.innerHTML = show.map(c=>{
+    if(!c.products||!c.products.length) return '';
+    return '<div class="section" id="sec-'+c.id+'">'+
+      '<div class="sec-title">'+c.name_uz+'</div>'+
+      '<div class="grid">'+c.products.filter(p=>p.active).map(p=>cardHTML(p)).join('')+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+function cardHTML(p) {
+  const qty = cart[p.id]||0;
+  return '<div class="card" id="card-'+p.id+'">'+
+    '<img src="'+(p.image||'')+'" onerror="this.src='https://via.placeholder.com/200x110?text='+encodeURIComponent(p.name_uz)+''">'+
+    '<div class="card-body">'+
+      '<div class="card-name">'+p.name_uz+'</div>'+
+      '<div class="card-price">'+(p.price||0).toLocaleString()+" so'm</div>"+
+      (qty===0
+        ? '<button class="add-btn" onclick="add('+p.id+')">+ Qo'shish</button>'
+        : '<div class="in-cart"><button class="qty-btn" onclick="dec('+p.id+')">-</button><span class="qty-num">'+qty+'</span><button class="qty-btn" onclick="add('+p.id+')">+</button></div>')
+    +'</div></div>';
+}
+
+function add(id) {
+  cart[id] = (cart[id]||0) + 1;
+  updateCard(id); updateUI();
+}
+function dec(id) {
+  cart[id] = (cart[id]||1) - 1;
+  if(cart[id]===0) delete cart[id];
+  updateCard(id); updateUI();
+}
+function updateCard(id) {
+  const p = prods.find(x=>x.id===id);
+  if(!p) return;
+  const el = document.getElementById('card-'+id);
+  if(el) el.outerHTML = cardHTML(p);
+}
+
+function cartItems() {
+  return Object.entries(cart).map(([id,qty])=>{
+    const p = prods.find(x=>x.id===parseInt(id));
+    return p ? {...p, qty} : null;
+  }).filter(Boolean);
+}
+function cartTotal() {
+  return cartItems().reduce((s,i)=>s+i.price*i.qty, 0);
+}
+function cartCount() {
+  return Object.values(cart).reduce((s,q)=>s+q, 0);
+}
+
+function updateUI() {
+  const cnt = cartCount(), tot = cartTotal();
+  document.getElementById('cart-count').textContent = cnt;
+  document.getElementById('cart-total-btn').textContent = tot.toLocaleString()+" so'm";
+  const btn = document.getElementById('goto-cart');
+  if(btn) btn.disabled = cnt===0;
+}
+
+// Pages
+function openCart() {
+  const items = cartItems();
+  if(items.length===0) return;
+  const el = document.getElementById('cart-body');
+  const tot = cartTotal();
+  el.innerHTML = items.map(i=>
+    '<div class="cart-item">'+
+    '<img class="cart-img" src="'+(i.image||'')+'" onerror="this.src='https://via.placeholder.com/56'">'+
+    '<div class="cart-info">'+
+      '<div class="cart-name">'+i.name_uz+'</div>'+
+      '<div class="cart-price">'+(i.price*i.qty).toLocaleString()+" so'm</div>"+
+      '<div class="cart-qty">'+
+        '<button class="qty-btn" onclick="decCart('+i.id+')">-</button>'+
+        '<span class="qty-num">'+i.qty+'</span>'+
+        '<button class="qty-btn" onclick="addCart('+i.id+')">+</button>'+
+      '</div>'+
+    '</div>'+
+    '<button class="del-btn" onclick="removeCart('+i.id+')">&#128465;</button>'+
+    '</div>'
+  ).join('') +
+  '<div style="padding:10px 16px">'+
+  '<div class="total-box">'+
+    items.map(i=>'<div class="total-row"><span>'+i.name_uz+' × '+i.qty+'</span><span>'+(i.price*i.qty).toLocaleString()+" so'm</span></div>").join('')+
+    '<div class="total-row big"><span>Jami</span><span>'+tot.toLocaleString()+" so'm</span></div>"+
+  '</div>'+
+  '<button class="submit-btn" style="margin-top:10px" onclick="openCheckout()">Buyurtma berish &#8594;</button>'+
+  '</div>';
+  openPage('pg-cart');
+}
+
+function addCart(id) { add(id); openCart(); }
+function decCart(id) { dec(id); openCart(); }
+function removeCart(id) { delete cart[id]; updateUI(); openCart(); }
+
+function openCheckout() {
+  closePage('pg-cart');
+  openPage('pg-checkout');
+}
+
+function openPage(id) {
+  document.getElementById(id).classList.add('show');
+}
+function closePage(id) {
+  document.getElementById(id).classList.remove('show');
+}
+
+// Payment
+function selectPay(method, el) {
+  selPay = method;
+  document.querySelectorAll('.pay-opt').forEach(e=>e.classList.remove('on'));
+  el.classList.add('on');
+  const info = document.getElementById('pay-info');
+  if(method === 'cash') {
+    info.innerHTML = '&#128181; Kuryerga naqd pul bering.';
+    info.classList.add('show');
+  } else if(method === 'click') {
+    info.innerHTML = '&#128241; Click ilovangiz orqali to'laysiz. Buyurtma yuborilgach, bot sizga to'lov tafsilotlarini yuboradi.';
+    info.classList.add('show');
+  } else if(method === 'payme') {
+    info.innerHTML = '&#128179; Payme ilovangiz orqali to'laysiz. Buyurtma yuborilgach, bot sizga to'lov tafsilotlarini yuboradi.';
+    info.classList.add('show');
+  }
+}
+
+// GPS
+function getLocation() {
+  if(!navigator.geolocation) return alert("GPS mavjud emas");
+  const btn = document.getElementById('loc-btn');
+  btn.textContent = '&#128205; Aniqlanmoqda...';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      userLat = pos.coords.latitude;
+      userLng = pos.coords.longitude;
+      btn.className = 'loc-btn got';
+      btn.innerHTML = '&#9989; Joylashuv aniqlandi!';
+    },
+    () => { btn.innerHTML = '&#128205; Joylashuvimni aniqlash (GPS)'; }
+  );
+}
+
+// Submit
+async function submitOrder() {
+  const name = document.getElementById('f-name').value.trim();
+  const phone = document.getElementById('f-phone').value.trim();
+  const addr = document.getElementById('f-addr').value.trim();
+  const comment = document.getElementById('f-comment').value.trim();
+
+  if(!name) { alert("Ismingizni kiriting!"); return; }
+  if(!phone) { alert("Telefon raqamingizni kiriting!"); return; }
+  if(!addr && !userLat) { alert("Manzil yoki GPS lokatsiyangizni kiriting!"); return; }
+
+  const items = cartItems();
+  if(!items.length) { alert("Savatcha bo'sh!"); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.textContent = 'Yuborilmoqda...';
+
+  try {
+    const res = await fetch('/api/orders', {
+      method: 'POST', headers: H,
+      body: JSON.stringify({
+        user_id: UID || 'anon',
+        user_name: name, user_phone: phone,
+        items: items.map(i=>({id:i.id, name_uz:i.name_uz, qty:i.qty, price:i.price})),
+        total: cartTotal(),
+        address: addr, lat: userLat, lng: userLng,
+        comment, payment: selPay
+      })
+    });
+    const data = await res.json();
+    if(data.ok) {
+      cart = {}; updateUI();
+      closePage('pg-checkout');
+      let msg = '';
+      if(selPay === 'cash') {
+        msg = 'Kuryerimiz tez orada yetib boradi. &#128757;';
+      } else {
+        msg = '&#128241; Bot orqali to'lov instruksiyasini olasiz. To'lov qilib, chekni botga yuboring.';
+      }
+      document.getElementById('success-msg').innerHTML = msg;
+      openPage('pg-success');
+    } else {
+      btn.disabled = false; btn.textContent = '&#9989; Buyurtma berish';
+      alert('Xatolik: '+(data.error||'Qayta urinib koring'));
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '&#9989; Buyurtma berish';
+    alert('Ulanishda xatolik. Internet aloqasini tekshiring.');
+  }
+}
+</script>
+</body></html>
