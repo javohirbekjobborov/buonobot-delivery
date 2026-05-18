@@ -60,7 +60,7 @@ bot.on('photo', async ctx => {
   db.prepare("UPDATE orders SET payment_status='checking' WHERE id=?").run(order.id);
 
   const pLabel = order.payment === 'click' ? '📱 Click' : '💳 Payme';
-  const text = '📸 To'lov cheki keldi!\n\n👤 '+order.user_name+'\n📦 Buyurtma #'+order.id+'\n💰 '+order.total.toLocaleString()+" so'm\n"+pLabel;
+  const text = "📸 To'lov cheki keldi!\n\n👤 "+order.user_name+"\n📦 Buyurtma #"+order.id+"\n💰 "+order.total.toLocaleString()+" so'm\n"+pLabel;
 
   for (const adminId of ADMIN_IDS) {
     try {
@@ -110,14 +110,14 @@ bot.action(/^pay_no_(\d+)$/, async ctx => {
 function notifyAdmin(order, isPaymentConfirm) {
   const items = JSON.parse(order.items);
   let t = isPaymentConfirm
-    ? '💰 TO'LOV TASDIQLANDI — Buyurtma #'+order.id+'\n\n'
+    ? "💰 TO'LOV TASDIQLANDI — Buyurtma #"+order.id+"\n\n"
     : '🆕 YANGI BUYURTMA #'+order.id+'\n\n';
   t += (order.user_name||'-')+' | '+(order.user_phone||'-')+'\n';
   items.forEach(i => { t += '▪ '+i.name_uz+' × '+i.qty+' = '+(i.price*i.qty).toLocaleString()+" so'm\n"; });
   t += '\nJami: '+order.total.toLocaleString()+" so'm";
   const pLabel = order.payment==='cash' ? '💵 Naqd' : order.payment==='click' ? '📱 Click' : '💳 Payme';
   t += '\n'+pLabel;
-  if (order.payment_status==='paid') t += ' ✅ TO'LANGAN';
+  if (order.payment_status==='paid') t += " ✅ TO'LANGAN";
   if (order.comment) t += '\n💬 '+order.comment;
   if (order.address) t += '\n📍 '+order.address;
 
@@ -192,9 +192,9 @@ app.post('/api/orders', async (req, res) => {
   if (payment !== 'cash' && user_id && user_id !== 'anon') {
     let payMsg = '';
     if (payment === 'click') {
-      payMsg = '💳 Click orqali to'lov:\n\n📱 Telefon raqam: '+CLICK_PHONE+'\n💰 Summa: '+total.toLocaleString()+" so'm"+'\n📝 Izoh: Buyurtma #'+r.lastInsertRowid+'\n\n1️⃣ Click ilovasini oching\n2️⃣ "Pul o'tkazma" → telefon raqamni kiriting\n3️⃣ To'lovni tasdiqlang\n4️⃣ Chek (screenshot) shu chatga yuboring ✅';
+      payMsg = `💳 Click orqali to'lov:\n\n📱 Telefon raqam: ${CLICK_PHONE}\n💰 Summa: ${total.toLocaleString()} so'm\n📝 Izoh: Buyurtma #${r.lastInsertRowid}\n\n1️⃣ Click ilovasini oching\n2️⃣ "Pul o'tkazma" → telefon raqamni kiriting\n3️⃣ To'lovni tasdiqlang\n4️⃣ Chek (screenshot) shu chatga yuboring ✅`;
     } else if (payment === 'payme') {
-      payMsg = '💳 Payme orqali to'lov:\n\n📱 Telefon raqam: '+PAYME_PHONE+'\n💰 Summa: '+total.toLocaleString()+" so'm"+'\n📝 Izoh: Buyurtma #'+r.lastInsertRowid+'\n\n1️⃣ Payme ilovasini oching\n2️⃣ "Pul jo'natish" → telefon raqamni kiriting\n3️⃣ To'lovni tasdiqlang\n4️⃣ Chek (screenshot) shu chatga yuboring ✅';
+      payMsg = `💳 Payme orqali to'lov:\n\n📱 Telefon raqam: ${PAYME_PHONE}\n💰 Summa: ${total.toLocaleString()} so'm\n📝 Izoh: Buyurtma #${r.lastInsertRowid}\n\n1️⃣ Payme ilovasini oching\n2️⃣ "Pul jo'natish" → telefon raqamni kiriting\n3️⃣ To'lovni tasdiqlang\n4️⃣ Chek (screenshot) shu chatga yuboring ✅`;
     }
     if (payMsg) {
       bot.telegram.sendMessage(user_id, payMsg).catch(()=>{});

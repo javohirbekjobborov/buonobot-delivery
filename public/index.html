@@ -216,12 +216,12 @@ function renderMenu(catId) {
 function cardHTML(p) {
   const qty = cart[p.id]||0;
   return '<div class="card" id="card-'+p.id+'">'+
-    '<img src="'+(p.image||'')+'" onerror="this.src='https://via.placeholder.com/200x110?text='+encodeURIComponent(p.name_uz)+''">'+
+    '<img src="'+(p.image||'')+'" onerror="this.src=\'https://via.placeholder.com/200x110?text='+encodeURIComponent(p.name_uz)+'\'">'+
     '<div class="card-body">'+
       '<div class="card-name">'+p.name_uz+'</div>'+
       '<div class="card-price">'+(p.price||0).toLocaleString()+" so'm</div>"+
       (qty===0
-        ? '<button class="add-btn" onclick="add('+p.id+')">+ Qo'shish</button>'
+        ? '<button class="add-btn" onclick="add('+p.id+')">+ Qo\'shish</button>'
         : '<div class="in-cart"><button class="qty-btn" onclick="dec('+p.id+')">-</button><span class="qty-num">'+qty+'</span><button class="qty-btn" onclick="add('+p.id+')">+</button></div>')
     +'</div></div>';
 }
@@ -271,7 +271,7 @@ function openCart() {
   const tot = cartTotal();
   el.innerHTML = items.map(i=>
     '<div class="cart-item">'+
-    '<img class="cart-img" src="'+(i.image||'')+'" onerror="this.src='https://via.placeholder.com/56'">'+
+    '<img class="cart-img" src="'+(i.image||'')+'" onerror="this.src=\'https://via.placeholder.com/56\'">'+
     '<div class="cart-info">'+
       '<div class="cart-name">'+i.name_uz+'</div>'+
       '<div class="cart-price">'+(i.price*i.qty).toLocaleString()+" so'm</div>"+
@@ -320,10 +320,10 @@ function selectPay(method, el) {
     info.innerHTML = '&#128181; Kuryerga naqd pul bering.';
     info.classList.add('show');
   } else if(method === 'click') {
-    info.innerHTML = '&#128241; Click ilovangiz orqali to'laysiz. Buyurtma yuborilgach, bot sizga to'lov tafsilotlarini yuboradi.';
+    info.innerHTML = "&#128241; Click ilovangiz orqali to'laysiz. Buyurtma yuborilgach, bot sizga to'lov tafsilotlarini yuboradi.";
     info.classList.add('show');
   } else if(method === 'payme') {
-    info.innerHTML = '&#128179; Payme ilovangiz orqali to'laysiz. Buyurtma yuborilgach, bot sizga to'lov tafsilotlarini yuboradi.';
+    info.innerHTML = "&#128179; Payme ilovangiz orqali to'laysiz. Buyurtma yuborilgach, bot sizga to'lov tafsilotlarini yuboradi.";
     info.classList.add('show');
   }
 }
@@ -381,7 +381,7 @@ async function submitOrder() {
       if(selPay === 'cash') {
         msg = 'Kuryerimiz tez orada yetib boradi. &#128757;';
       } else {
-        msg = '&#128241; Bot orqali to'lov instruksiyasini olasiz. To'lov qilib, chekni botga yuboring.';
+        msg = "&#128241; Bot orqali to'lov instruksiyasini olasiz. To'lov qilib, chekni botga yuboring.";
       }
       document.getElementById('success-msg').innerHTML = msg;
       openPage('pg-success');
