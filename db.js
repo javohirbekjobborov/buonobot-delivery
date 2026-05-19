@@ -30,10 +30,24 @@ db.exec(`
     delivery_type TEXT DEFAULT 'delivery',
     status TEXT DEFAULT 'new',
     courier_id TEXT, courier_name TEXT,
+    feedback_sent INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT, user_name TEXT, username TEXT,
+    category TEXT,
+    kassir INTEGER, taom INTEGER, tozalik INTEGER,
+    comment TEXT DEFAULT '',
+    photo_file_id TEXT DEFAULT '',
+    shift TEXT,
+    order_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
+
+try { db.exec("ALTER TABLE orders ADD COLUMN feedback_sent INTEGER DEFAULT 0"); } catch(e) {}
 
 try { db.exec("ALTER TABLE orders ADD COLUMN delivery_type TEXT DEFAULT 'delivery'"); } catch(e) {}
 
