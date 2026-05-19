@@ -516,6 +516,20 @@ app.get('/api/groups-discovered', (req, res) => {
   res.json(db.prepare('SELECT id, title, type, username FROM chats ORDER BY added_at DESC').all());
 });
 
+// Username orqali chat-ni resolve qilish va saqlash
+// Bot username @ kerakmas, lekin guruhda admin bo'lishi shart
+app.get('/api/resolve-chat', async (req, res) => {
+  const u = (req.query.username || '').replace(/^@/, '');
+  if (!u) return res.status(400).json({ error: 'username required' });
+  try {
+    const chat = await bot.telegram.getChat('@'+u);
+    rememberChat(chat);
+    res.json({ id: chat.id, title: chat.title, type: chat.type, username: chat.username });
+  } catch(e) {
+    res.status(500).json({ error: e.description || e.message });
+  }
+});
+
 app.get('/api/admin/stats', (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
   res.json({
