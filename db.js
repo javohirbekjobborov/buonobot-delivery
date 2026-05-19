@@ -45,6 +45,13 @@ db.exec(`
     order_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS chats (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    type TEXT,
+    username TEXT,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 try { db.exec("ALTER TABLE orders ADD COLUMN feedback_sent INTEGER DEFAULT 0"); } catch(e) {}

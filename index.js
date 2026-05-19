@@ -342,10 +342,10 @@ bot.command('statistika', async ctx => {
 });
 
 // Guruh ID-sini topish uchun yordamchi komanda
-// (botni guruhga qo'shing, /chatid yozing — guruh ID javob keladi)
 bot.command('chatid', async ctx => {
   try {
     const c = ctx.chat;
+    rememberChat(c);
     const text = '🆔 *Chat ma\'lumotlari*\n\n'+
       'ID: `'+c.id+'`\n'+
       'Turi: '+c.type+'\n'+
@@ -355,6 +355,28 @@ bot.command('chatid', async ctx => {
       '`ORDERS_GROUP_ID` (buyurtmalar uchun)\n'+
       '`FEEDBACK_GROUP_ID` (taklif/shikoyatlar uchun)';
     await ctx.reply(text, {parse_mode: 'Markdown'});
+  } catch(e) {}
+});
+
+function rememberChat(chat) {
+  if (!chat || (chat.type !== 'group' && chat.type !== 'supergroup' && chat.type !== 'channel')) return;
+  try {
+    db.prepare('INSERT OR REPLACE INTO chats (id,title,type,username,added_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)')
+      .run(String(chat.id), chat.title||'', chat.type, chat.username||'');
+  } catch(e) {}
+}
+
+// Bot guruhga qo'shilganda / olib tashlanganda avtomatik saqlash
+bot.on('my_chat_member', async ctx => {
+  try {
+    const chat = ctx.chat;
+    const newStatus = ctx.update.my_chat_member?.new_chat_member?.status;
+    if (chat.type !== 'group' && chat.type !== 'supergroup' && chat.type !== 'channel') return;
+    if (['member','administrator','creator'].includes(newStatus)) {
+      rememberChat(chat);
+    } else if (newStatus === 'left' || newStatus === 'kicked') {
+      try { db.prepare('DELETE FROM chats WHERE id=?').run(String(chat.id)); } catch(e) {}
+    }
   } catch(e) {}
 });
 
@@ -482,6 +504,16 @@ app.get('/api/orders/my', (req, res) => {
   const orders = db.prepare('SELECT * FROM orders WHERE user_id=? ORDER BY created_at DESC LIMIT 20').all(tid);
   orders.forEach(o => { o.items = JSON.parse(o.items); });
   res.json(orders);
+});
+
+app.get('/api/admin/groups', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  res.json(db.prepare('SELECT * FROM chats ORDER BY added_at DESC').all());
+});
+
+// Ochiq endpoint — guruh kashf qilish uchun (sensitive emas, faqat saqlangan guruhlar)
+app.get('/api/groups-discovered', (req, res) => {
+  res.json(db.prepare('SELECT id, title, type, username FROM chats ORDER BY added_at DESC').all());
 });
 
 app.get('/api/admin/stats', (req, res) => {
