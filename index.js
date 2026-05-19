@@ -10,7 +10,19 @@ const PORT = process.env.PORT || 3000;
 const APP_URL = process.env.APP_URL || 'http://localhost:' + PORT;
 const ADMIN_IDS = (process.env.ADMIN_CHAT_ID || '').split(',').map(s=>s.trim()).filter(Boolean);
 const COURIER_IDS = (process.env.COURIER_IDS || '').split(',').map(s=>s.trim()).filter(Boolean);
+const ORDERS_GROUP_ID = process.env.ORDERS_GROUP_ID || '';
 const FEEDBACK_GROUP_ID = process.env.FEEDBACK_GROUP_ID || '';
+
+// Buyurtmalar va buyurtma bilan bog'liq baholar shu yerga ketadi.
+// Bo'sh bo'lsa — ADMIN_IDS ga.
+function orderRecipients() {
+  return ORDERS_GROUP_ID ? [ORDERS_GROUP_ID] : ADMIN_IDS;
+}
+// Buyurtma_id ga bog'lanmagan baho/taklif/shikoyat shu yerga ketadi.
+// Bo'sh bo'lsa — ADMIN_IDS ga.
+function generalFeedbackRecipients() {
+  return FEEDBACK_GROUP_ID ? [FEEDBACK_GROUP_ID] : ADMIN_IDS;
+}
 
 app.use(express.json({limit:'5mb'}));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -264,7 +276,9 @@ async function finalizeFeedback(ctx, state, comment, photoFileId) {
   if (state.orderId) msg += '\n📦 Buyurtma #'+state.orderId;
   if (comment) msg += '\n💬 '+comment;
 
-  const recipients = FEEDBACK_GROUP_ID ? [FEEDBACK_GROUP_ID] : ADMIN_IDS;
+  // Buyurtmaga bog'liq baho/taklif/shikoyat → buyurtmalar guruhi
+  // Oddiy (buyurtmasiz) — feedback guruhi
+  const recipients = state.orderId ? orderRecipients() : generalFeedbackRecipients();
   for (const id of recipients) {
     try {
       if (photoFileId) {
@@ -327,6 +341,23 @@ bot.command('statistika', async ctx => {
   await ctx.reply(buildStatsReport('STATISTIKA'), {parse_mode: 'Markdown'});
 });
 
+// Guruh ID-sini topish uchun yordamchi komanda
+// (botni guruhga qo'shing, /chatid yozing — guruh ID javob keladi)
+bot.command('chatid', async ctx => {
+  try {
+    const c = ctx.chat;
+    const text = '🆔 *Chat ma\'lumotlari*\n\n'+
+      'ID: `'+c.id+'`\n'+
+      'Turi: '+c.type+'\n'+
+      (c.title?'Nomi: '+c.title+'\n':'')+
+      (c.username?'Username: @'+c.username+'\n':'')+
+      '\nShu ID-ni Railway Variables ga qo\'ying:\n'+
+      '`ORDERS_GROUP_ID` (buyurtmalar uchun)\n'+
+      '`FEEDBACK_GROUP_ID` (taklif/shikoyatlar uchun)';
+    await ctx.reply(text, {parse_mode: 'Markdown'});
+  } catch(e) {}
+});
+
 // Oylik avto-hisobot (har soat tekshiriladi, har oyning 1-kunida 09:00 da yuboriladi)
 const monthlyReportSent = new Set();
 setInterval(async () => {
@@ -337,8 +368,7 @@ setInterval(async () => {
     if (monthlyReportSent.has(key)) return;
     monthlyReportSent.add(key);
     const text = buildStatsReport('OYLIK HISOBOT');
-    const recipients = FEEDBACK_GROUP_ID ? [FEEDBACK_GROUP_ID] : ADMIN_IDS;
-    for (const id of recipients) {
+    for (const id of generalFeedbackRecipients()) {
       try { await bot.telegram.sendMessage(id, text, {parse_mode: 'Markdown'}); } catch(e) {}
     }
   } catch(e) { console.error('Monthly report error:', e.message); }
@@ -364,7 +394,7 @@ function notifyAdmin(order) {
   if (order.comment) t += '\n💬 '+order.comment;
   if (order.address) t += '\n📍 '+order.address;
 
-  ADMIN_IDS.forEach(id => {
+  orderRecipients().forEach(id => {
     bot.telegram.sendMessage(id, t).catch(()=>{});
     if (order.lat && order.lng) {
       bot.telegram.sendLocation(id, order.lat, order.lng).catch(()=>{});
