@@ -174,13 +174,6 @@ async function syncIikoMenu() {
 
   // 1. Kategoriyalarni upsert qilamiz (faqat top-level guruhlar)
   const topGroups = groups.filter(g => !g.parentGroup);
-  const upsertCat = db.prepare(`INSERT INTO categories (name_uz, name_ru, emoji, sort_order, active, iiko_group_id)
-    VALUES (?, ?, ?, ?, 1, ?)
-    ON CONFLICT(iiko_group_id) DO UPDATE SET name_uz=excluded.name_uz, name_ru=excluded.name_ru, sort_order=excluded.sort_order, active=1`);
-  // SQLite: iiko_group_id mavjud emas bo'lishi mumkin (column qo'shildi keyin), shu sababli ON CONFLICT ishlamasligi mumkin.
-  // Birinchi: noyob index yarataman:
-  try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_cat_iiko ON categories(iiko_group_id) WHERE iiko_group_id IS NOT NULL'); } catch(e) {}
-  try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_prod_iiko ON products(iiko_id) WHERE iiko_id IS NOT NULL'); } catch(e) {}
 
   const catIdByIiko = new Map();
   // Bizning categories jadvalida iiko_group_id orqali qidiramiz, agar yo'q bo'lsa qo'shamiz
