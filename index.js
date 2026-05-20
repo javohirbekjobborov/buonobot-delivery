@@ -39,8 +39,10 @@ function getTid(req) {
   return req.headers['x-telegram-id'] || req.query.uid || '';
 }
 function isAdmin(req) {
-  const tid = getTid(req);
+  const tid = String(getTid(req) || '');
   if (!tid) return false;
+  // ENV-da ko'rsatilgan ADMIN_IDS har doim admin (DB resetdan keyin ham ishlaydi)
+  if (ADMIN_IDS.includes(tid)) return true;
   const u = db.prepare('SELECT * FROM users WHERE telegram_id=?').get(tid);
   return u && u.role === 'admin';
 }
