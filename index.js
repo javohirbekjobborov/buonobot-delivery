@@ -172,66 +172,56 @@ async function syncIikoMenu() {
   const groups = data.groups || [];
   const products = data.products || [];
 
-  // 1. Kategoriyalarni upsert qilamiz (faqat top-level guruhlar)
-  const topGroups = groups.filter(g => !g.parentGroup);
+  const groupById = new Map(groups.map(g => [g.id, g]));
+  // Aktiv (isDeleted bo'lmagan) Dish/Good mahsulotlar parent guruhlarini topamiz
+  const activeProducts = products.filter(p => (p.type === 'Dish' || p.type === 'Good') && !p.isDeleted);
+  const usedCategoryIds = new Set(activeProducts.map(p => p.parentGroup).filter(Boolean));
+  const usedCategories = Array.from(usedCategoryIds).map(id => groupById.get(id)).filter(Boolean);
+  usedCategories.sort((a, b) => (a.order || 0) - (b.order || 0));
 
+  // Kategoriyalarni upsert
   const catIdByIiko = new Map();
-  // Bizning categories jadvalida iiko_group_id orqali qidiramiz, agar yo'q bo'lsa qo'shamiz
-  topGroups.sort((a,b) => (a.order||0) - (b.order||0));
   let order = 1;
-  for (const g of topGroups) {
+  for (const g of usedCategories) {
+    // "1. Бургеры" → "Бургеры" (raqamli prefiks olib tashlash)
+    const cleanName = (g.name || '').replace(/^\s*\d+\.\s*/, '').trim() || g.name;
     const existing = db.prepare('SELECT id FROM categories WHERE iiko_group_id=?').get(g.id);
     if (existing) {
-      db.prepare('UPDATE categories SET name_uz=?, name_ru=?, sort_order=?, active=1 WHERE id=?').run(g.name, g.name, order, existing.id);
+      db.prepare('UPDATE categories SET name_uz=?, name_ru=?, sort_order=?, active=1 WHERE id=?').run(cleanName, cleanName, order, existing.id);
       catIdByIiko.set(g.id, existing.id);
     } else {
-      const r = db.prepare('INSERT INTO categories (name_uz, name_ru, emoji, sort_order, active, iiko_group_id) VALUES (?, ?, ?, ?, 1, ?)').run(g.name, g.name, '🍽', order, g.id);
+      const r = db.prepare('INSERT INTO categories (name_uz, name_ru, emoji, sort_order, active, iiko_group_id) VALUES (?, ?, ?, ?, 1, ?)').run(cleanName, cleanName, '🍽', order, g.id);
       catIdByIiko.set(g.id, r.lastInsertRowid);
     }
     order++;
   }
 
-  // Subgroups → parent group bilan bog'lash uchun map
-  const groupTopMap = new Map();
-  for (const g of groups) {
-    let cur = g, depth = 0;
-    while (cur && cur.parentGroup && depth < 10) {
-      cur = groups.find(x => x.id === cur.parentGroup);
-      depth++;
-    }
-    if (cur) groupTopMap.set(g.id, cur.id);
-  }
-
-  // 2. Mahsulotlarni upsert qilamiz
+  // Mahsulotlarni upsert
   let synced = 0;
   const allIikoIds = new Set();
-  for (const p of products) {
-    // Faqat asosiy mahsulotlar (modifierlar emas)
-    if (p.type !== 'Dish' && p.type !== 'Good') continue;
-    const topGroup = groupTopMap.get(p.parentGroup);
-    if (!topGroup) continue;
-    const categoryId = catIdByIiko.get(topGroup);
+  for (const p of activeProducts) {
+    const categoryId = catIdByIiko.get(p.parentGroup);
     if (!categoryId) continue;
     const price = (p.sizePrices && p.sizePrices[0] && p.sizePrices[0].price && p.sizePrices[0].price.currentPrice) || 0;
     if (price <= 0) continue;
-    if (p.isDeleted) continue;
 
     allIikoIds.add(p.id);
     const name = (p.name || '').trim();
     const desc = (p.description || '').trim();
+    const image = (p.imageLinks && p.imageLinks[0]) || '';
 
     const existing = db.prepare('SELECT id FROM products WHERE iiko_id=?').get(p.id);
     if (existing) {
-      db.prepare('UPDATE products SET name_uz=?, name_ru=?, desc_uz=?, desc_ru=?, price=?, category_id=?, active=1, iiko_group_id=? WHERE id=?')
-        .run(name, name, desc, desc, price, categoryId, topGroup, existing.id);
+      db.prepare('UPDATE products SET name_uz=?, name_ru=?, desc_uz=?, desc_ru=?, price=?, category_id=?, image=COALESCE(NULLIF(?, ""), image), active=1, iiko_group_id=? WHERE id=?')
+        .run(name, name, desc, desc, price, categoryId, image, p.parentGroup, existing.id);
     } else {
       db.prepare('INSERT INTO products (name_uz, name_ru, desc_uz, desc_ru, price, category_id, image, active, iiko_id, iiko_group_id) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)')
-        .run(name, name, desc, desc, price, categoryId, '', p.id, topGroup);
+        .run(name, name, desc, desc, price, categoryId, image, p.id, p.parentGroup);
     }
     synced++;
   }
 
-  // 3. iiko-da yo'q mahsulotlarni nofaol qilamiz
+  // iiko-da yo'q (eski iiko mahsulotlari) nofaol qilamiz — faqat iiko_id BOR bo'lganlar
   const placeholders = Array.from(allIikoIds).map(() => '?').join(',');
   let deactivated = 0;
   if (allIikoIds.size > 0) {
@@ -239,7 +229,13 @@ async function syncIikoMenu() {
     deactivated = r.changes;
   }
 
-  return { ok: true, groups: topGroups.length, synced, deactivated };
+  // Iiko-dagi seed kategoriyalarini ham nofaol qilamiz (iiko ulanmaganida ishlatilgan)
+  if (usedCategories.length > 0) {
+    db.prepare("UPDATE categories SET active=0 WHERE iiko_group_id IS NULL").run();
+    db.prepare("UPDATE products SET active=0 WHERE iiko_id IS NULL").run();
+  }
+
+  return { ok: true, groups: usedCategories.length, synced, deactivated };
 }
 
 // Buyurtmani iiko-ga yuborish
