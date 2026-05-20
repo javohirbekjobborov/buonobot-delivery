@@ -229,13 +229,15 @@ async function syncIikoMenu() {
     deactivated = r.changes;
   }
 
-  // Iiko-dagi seed kategoriyalarini ham nofaol qilamiz (iiko ulanmaganida ishlatilgan)
-  if (usedCategories.length > 0) {
+  // Seed kategoriyalarini o'chirish faqat IIKO_REPLACE_LOCAL_MENU=true bo'lganda
+  // (default: iiko menyusi va seed menyu yonma-yon ishlaydi)
+  const replaceLocal = (process.env.IIKO_REPLACE_LOCAL_MENU || 'false').toLowerCase() === 'true';
+  if (replaceLocal && synced >= 10) {
     db.prepare("UPDATE categories SET active=0 WHERE iiko_group_id IS NULL").run();
     db.prepare("UPDATE products SET active=0 WHERE iiko_id IS NULL").run();
   }
 
-  return { ok: true, groups: usedCategories.length, synced, deactivated };
+  return { ok: true, groups: usedCategories.length, synced, deactivated, replaced_local: replaceLocal && synced>=10 };
 }
 
 // Buyurtmani iiko-ga yuborish
