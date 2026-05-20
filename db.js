@@ -52,7 +52,35 @@ db.exec(`
     username TEXT,
     added_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS customers (
+    telegram_id TEXT PRIMARY KEY,
+    card_number TEXT UNIQUE NOT NULL,
+    phone TEXT,
+    first_name TEXT,
+    last_name TEXT,
+    username TEXT,
+    bonus_balance INTEGER DEFAULT 0,
+    total_earned INTEGER DEFAULT 0,
+    total_spent INTEGER DEFAULT 0,
+    iiko_customer_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS bonus_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_telegram_id TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    remaining INTEGER NOT NULL DEFAULT 0,
+    kind TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    order_id INTEGER,
+    expires_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_bonus_tx_customer ON bonus_transactions(customer_telegram_id, kind, remaining, expires_at);
 `);
+
+try { db.exec("ALTER TABLE orders ADD COLUMN bonus_used INTEGER DEFAULT 0"); } catch(e) {}
+try { db.exec("ALTER TABLE orders ADD COLUMN cashback_credited INTEGER DEFAULT 0"); } catch(e) {}
 
 try { db.exec("ALTER TABLE orders ADD COLUMN feedback_sent INTEGER DEFAULT 0"); } catch(e) {}
 

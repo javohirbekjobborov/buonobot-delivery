@@ -79,7 +79,10 @@ textarea.inp{min-height:60px;resize:none}
 <div id="pg-main">
   <div class="hdr">
     <h1>&#127828; Buono Burger</h1>
-    <button class="cart-btn" onclick="openCart()">&#128722; <span id="cart-count">0</span></button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="cart-btn" onclick="openCard()" title="Mening kartam" style="background:rgba(255,255,255,.2)">&#127915;</button>
+      <button class="cart-btn" onclick="openCart()">&#128722; <span id="cart-count">0</span></button>
+    </div>
   </div>
   <div class="cats" id="cats"></div>
   <div id="menu-body"></div>
@@ -115,6 +118,27 @@ textarea.inp{min-height:60px;resize:none}
     <h3>&#128205; Yetkazish manzili</h3>
     <input class="inp" id="f-addr" placeholder="Ko'cha, uy raqami..." type="text">
     <button class="loc-btn" id="loc-btn" onclick="getLocation()">&#128205; Joylashuvimni aniqlash (GPS)</button>
+  </div>
+  <div class="form-box" id="bonus-box" style="display:none">
+    <h3>&#127873; Bonus ishlatish</h3>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <label class="switch" style="position:relative;display:inline-block;width:50px;height:26px">
+        <input type="checkbox" id="bonus-toggle" onchange="onBonusToggle()" style="opacity:0;width:0;height:0">
+        <span class="slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#cbd5e1;border-radius:26px;transition:.3s"></span>
+      </label>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:13px">Bonusdan to'lash</div>
+        <div style="font-size:11px;color:#64748b" id="bonus-info">Balans: 0 so'm</div>
+      </div>
+    </div>
+    <div id="bonus-slider-wrap" style="display:none">
+      <input type="range" id="bonus-amount" min="0" max="0" step="500" value="0" oninput="onBonusInput()" style="width:100%">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:4px">
+        <span style="color:#64748b">0</span>
+        <span style="font-weight:800;color:#e63946" id="bonus-amount-label">0 so'm</span>
+        <span style="color:#64748b" id="bonus-max-label">0</span>
+      </div>
+    </div>
   </div>
   <div class="form-box">
     <h3>&#128179; To'lov usuli</h3>
@@ -154,6 +178,17 @@ textarea.inp{min-height:60px;resize:none}
   </div>
 </div>
 
+<!-- CARD PAGE -->
+<div class="page" id="pg-card">
+  <div class="page-hdr">
+    <button class="back-btn" onclick="closePage('pg-card')">&#8592;</button>
+    <h2>&#127915; Mening kartam</h2>
+  </div>
+  <div id="card-body" style="padding:16px">
+    <div class="empty"><p>Yuklanmoqda...</p></div>
+  </div>
+</div>
+
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
 if(tg) tg.expand();
@@ -162,6 +197,118 @@ const UID = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? String(tg.init
 const H = {'Content-Type':'application/json','x-telegram-id':UID};
 
 let cart = {}, cats = [], prods = [], selPay = 'click', userLat = null, userLng = null;
+let customerProfile = null;
+
+function loadCustomerProfile(cb) {
+  if (!UID) { customerProfile = {registered:false}; if(cb)cb(); return; }
+  fetch('/api/customer/me', {headers: H}).then(r=>r.json()).then(d=>{
+    customerProfile = d || {registered:false};
+    if(cb)cb();
+  }).catch(()=>{ customerProfile = {registered:false}; if(cb)cb(); });
+}
+
+function openCard() {
+  if (!UID) { alert('Telegram orqali kiring'); return; }
+  document.getElementById('pg-card').classList.add('show');
+  renderCard();
+  loadCustomerProfile(renderCard);
+}
+
+function renderCard() {
+  const body = document.getElementById('card-body');
+  if (!customerProfile || !customerProfile.registered) {
+    body.innerHTML = '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:14px;padding:16px;text-align:center"><h3 style="color:#92400e;margin-bottom:8px">Ro\'yxatdan o\'tmagansiz</h3><p style="font-size:13px;color:#92400e">Botga /start yozing va telefon raqamingizni yuboring.</p></div>';
+    return;
+  }
+  const c = customerProfile;
+  const ttl = c.config && c.config.ttl_days || 15;
+  const pct = c.config && c.config.bonus_percent || 3;
+  const txItems = (c.transactions || []).slice(0, 10).map(function(t) {
+    const sign = t.kind === 'credit' ? '+' : '-';
+    const color = t.kind === 'credit' ? '#16a34a' : (t.kind === 'expire' ? '#94a3b8' : '#e63946');
+    const reasons = {
+      welcome: "🎁 Sovg'a bonus",
+      order_cashback: "🛒 Buyurtma #"+(t.order_id||'')+" cashback",
+      order_spend: "💸 Buyurtma #"+(t.order_id||'')+" uchun ishlatildi",
+      ttl_expired: "⏳ Muddati tugadi"
+    };
+    const label = reasons[t.reason] || t.reason;
+    const date = (t.created_at || '').split('.')[0].replace('T',' ').slice(0,16);
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9"><div><div style="font-size:13px;font-weight:600">'+label+'</div><div style="font-size:11px;color:#64748b">'+date+'</div></div><div style="font-weight:800;color:'+color+'">'+sign+t.amount.toLocaleString()+" so'm</div></div>";
+  }).join('') || '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:16px">Tranzaksiyalar yo\'q</div>';
+
+  let nextExpHtml = '';
+  if (c.next_expire) {
+    const d = new Date(c.next_expire.replace(' ', 'T') + 'Z');
+    const daysLeft = Math.ceil((d.getTime() - Date.now()) / (24*3600*1000));
+    if (daysLeft >= 0 && daysLeft <= 7) {
+      nextExpHtml = '<div style="background:#fef3c7;border:1px solid #f59e0b;color:#92400e;padding:8px 12px;border-radius:10px;font-size:12px;margin-top:10px">⏳ Eng yaqin bonus '+daysLeft+' kun ichida tugaydi</div>';
+    }
+  }
+
+  body.innerHTML =
+    '<div style="background:linear-gradient(135deg,#e63946,#c1121f);color:#fff;border-radius:18px;padding:20px;text-align:center;margin-bottom:16px;box-shadow:0 8px 24px rgba(230,57,70,.25)">'+
+      '<div style="font-size:11px;opacity:.85;letter-spacing:1px">BUONO LOYALTY</div>'+
+      '<div style="font-size:24px;font-weight:800;margin:6px 0;letter-spacing:2px">'+c.card_number.replace(/(\d{4})(\d{3})(\d{3})/, '$1 $2 $3')+'</div>'+
+      '<div style="background:#fff;display:inline-block;padding:10px;border-radius:12px;margin:8px 0"><img src="/qr/'+c.card_number+'" alt="QR" style="width:160px;height:160px;display:block"></div>'+
+      '<div style="font-size:11px;opacity:.85">'+(c.first_name||'')+(c.phone?' • '+c.phone:'')+'</div>'+
+    '</div>'+
+    '<div style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;color:#64748b">💰 Joriy balans</span><span style="font-size:22px;font-weight:800;color:#e63946">'+c.bonus_balance.toLocaleString()+" so'm</span></div>"+
+      nextExpHtml+
+    '</div>'+
+    '<div style="background:#fff;border-radius:14px;padding:12px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);font-size:12px;color:#475569">'+
+      '<div>📊 Jami yig\'ildi: <b>'+(c.total_earned||0).toLocaleString()+" so'm</b></div>"+
+      '<div>📊 Jami ishlatildi: <b>'+(c.total_spent||0).toLocaleString()+" so'm</b></div>"+
+      '<div style="margin-top:6px;color:#64748b">📍 Har bir buyurtmadan '+pct+'% bonus • Muddati '+ttl+' kun</div>'+
+    '</div>'+
+    '<div style="background:#fff;border-radius:14px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06)">'+
+      '<h3 style="font-size:14px;margin-bottom:8px">📜 Tranzaksiyalar tarixi</h3>'+
+      txItems+
+    '</div>';
+}
+
+function onBonusToggle() {
+  const en = document.getElementById('bonus-toggle').checked;
+  document.getElementById('bonus-slider-wrap').style.display = en ? 'block' : 'none';
+  if (!en) {
+    document.getElementById('bonus-amount').value = 0;
+    document.getElementById('bonus-amount-label').textContent = "0 so'm";
+  }
+}
+function onBonusInput() {
+  const v = parseInt(document.getElementById('bonus-amount').value) || 0;
+  document.getElementById('bonus-amount-label').textContent = v.toLocaleString()+" so'm";
+}
+function getSelectedBonus() {
+  const t = document.getElementById('bonus-toggle');
+  if (!t || !t.checked) return 0;
+  return parseInt(document.getElementById('bonus-amount').value) || 0;
+}
+function configureBonusBox() {
+  if (!customerProfile || !customerProfile.registered) {
+    document.getElementById('bonus-box').style.display = 'none';
+    return;
+  }
+  const total = cartTotal();
+  const maxPct = (customerProfile.config && customerProfile.config.max_use_percent) || 50;
+  const balance = customerProfile.bonus_balance || 0;
+  const maxBonus = Math.max(0, Math.min(balance, Math.floor(total * maxPct / 100)));
+  const box = document.getElementById('bonus-box');
+  if (balance <= 0 || maxBonus <= 0) {
+    box.style.display = 'none';
+    return;
+  }
+  box.style.display = 'block';
+  document.getElementById('bonus-info').textContent = 'Balans: '+balance.toLocaleString()+" so'm • Bu buyurtmadan max "+maxBonus.toLocaleString()+" so'm ishlatish mumkin";
+  const slider = document.getElementById('bonus-amount');
+  slider.max = maxBonus;
+  slider.value = 0;
+  document.getElementById('bonus-amount-label').textContent = "0 so'm";
+  document.getElementById('bonus-max-label').textContent = maxBonus.toLocaleString();
+  document.getElementById('bonus-toggle').checked = false;
+  document.getElementById('bonus-slider-wrap').style.display = 'none';
+}
 
 // Init
 fetch('/api/menu').then(r=>r.json()).then(data=>{
@@ -170,6 +317,11 @@ fetch('/api/menu').then(r=>r.json()).then(data=>{
   renderCats();
   renderMenu();
 }).catch(()=>{});
+
+loadCustomerProfile(function(){
+  // URL hash #card bo'lsa karta sahifasini avtomatik ochish
+  if (location.hash === '#card') openCard();
+});
 
 if(UID) {
   fetch('/api/user',{method:'POST',headers:H,body:JSON.stringify({
@@ -299,6 +451,8 @@ function removeCart(id) { delete cart[id]; updateUI(); openCart(); }
 function openCheckout() {
   closePage('pg-cart');
   openPage('pg-checkout');
+  if (!customerProfile) loadCustomerProfile(configureBonusBox);
+  else configureBonusBox();
 }
 
 function openPage(id) {
@@ -354,6 +508,8 @@ async function submitOrder() {
   const items = cartItems();
   if(!items.length) { alert("Savatcha bo'sh!"); return; }
 
+  const bonusUsed = getSelectedBonus();
+
   const btn = document.getElementById('submit-btn');
   btn.disabled = true; btn.textContent = 'Yuborilmoqda...';
 
@@ -366,15 +522,20 @@ async function submitOrder() {
         items: items.map(i=>({id:i.id, name_uz:i.name_uz, qty:i.qty, price:i.price})),
         total: cartTotal(),
         address: addr, lat: userLat, lng: userLng,
-        comment, payment: selPay
+        comment, payment: selPay,
+        bonus_used: bonusUsed
       })
     });
     const data = await res.json();
     if(data.ok) {
       cart = {}; updateUI();
       closePage('pg-checkout');
-      document.getElementById('success-msg').innerHTML = 'Kuryerimiz tez orada yetib boradi. &#128757;';
+      let msg = 'Kuryerimiz tez orada yetib boradi. &#128757;';
+      if (bonusUsed > 0) msg += '<br><br>💸 '+bonusUsed.toLocaleString()+" so'm bonus ishlatildi.";
+      document.getElementById('success-msg').innerHTML = msg;
       openPage('pg-success');
+      // Bonusni yangilash
+      loadCustomerProfile();
     } else {
       btn.disabled = false; btn.textContent = '&#9989; Buyurtma berish';
       alert('Xatolik: '+(data.error||'Qayta urinib koring'));

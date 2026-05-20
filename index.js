@@ -2,7 +2,14 @@ require('dotenv').config();
 const { Telegraf, Markup } = require('telegraf');
 const express = require('express');
 const path = require('path');
+const QRCode = require('qrcode');
 const db = require('./db');
+
+// Bonus tizimi konfiguratsiyasi
+const BONUS_PERCENT = parseFloat(process.env.BONUS_PERCENT || '3');
+const WELCOME_BONUS = parseInt(process.env.WELCOME_BONUS || '5000');
+const BONUS_TTL_DAYS = parseInt(process.env.BONUS_TTL_DAYS || '15');
+const MAX_BONUS_USE_PERCENT = parseInt(process.env.MAX_BONUS_USE_PERCENT || '50');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
@@ -37,34 +44,194 @@ function isAdmin(req) {
   return u && u.role === 'admin';
 }
 
+// ── CUSTOMER & BONUS HELPERS ─────────────────────────────────────────────────
+
+function generateCardNumber() {
+  // 10 raqamli noyob karta raqami (1000000000..9999999999)
+  for (let i = 0; i < 20; i++) {
+    const n = String(Math.floor(1e9 + Math.random() * 9e9));
+    const existing = db.prepare('SELECT 1 FROM customers WHERE card_number=?').get(n);
+    if (!existing) return n;
+  }
+  // Fallback: ts-based
+  return String(1000000000 + (Date.now() % 9000000000));
+}
+
+function getCustomer(telegramId) {
+  return db.prepare('SELECT * FROM customers WHERE telegram_id=?').get(String(telegramId));
+}
+
+function getCustomerByCard(cardNumber) {
+  return db.prepare('SELECT * FROM customers WHERE card_number=?').get(String(cardNumber));
+}
+
+function registerCustomer(telegramId, firstName, lastName, username, phone) {
+  const existing = getCustomer(telegramId);
+  if (existing) {
+    // Telefon yangilash
+    if (phone && phone !== existing.phone) {
+      db.prepare('UPDATE customers SET phone=? WHERE telegram_id=?').run(phone, String(telegramId));
+    }
+    return { customer: getCustomer(telegramId), isNew: false };
+  }
+  const cardNumber = generateCardNumber();
+  db.prepare('INSERT INTO customers (telegram_id, card_number, phone, first_name, last_name, username) VALUES (?,?,?,?,?,?)')
+    .run(String(telegramId), cardNumber, phone||'', firstName||'', lastName||'', username||'');
+
+  // Welcome bonus
+  if (WELCOME_BONUS > 0) {
+    creditBonus(telegramId, WELCOME_BONUS, 'welcome', null);
+  }
+  return { customer: getCustomer(telegramId), isNew: true };
+}
+
+function creditBonus(telegramId, amount, reason, orderId) {
+  if (amount <= 0) return;
+  const tid = String(telegramId);
+  const customer = getCustomer(tid);
+  if (!customer) return;
+  const expiresAt = new Date(Date.now() + BONUS_TTL_DAYS*24*3600*1000).toISOString().replace('T',' ').slice(0,19);
+  db.prepare("INSERT INTO bonus_transactions (customer_telegram_id, amount, remaining, kind, reason, order_id, expires_at) VALUES (?, ?, ?, 'credit', ?, ?, ?)")
+    .run(tid, amount, amount, reason, orderId, expiresAt);
+  db.prepare('UPDATE customers SET bonus_balance=bonus_balance+?, total_earned=total_earned+? WHERE telegram_id=?')
+    .run(amount, amount, tid);
+}
+
+function debitBonus(telegramId, amount, reason, orderId) {
+  if (amount <= 0) return 0;
+  const tid = String(telegramId);
+  const customer = getCustomer(tid);
+  if (!customer || customer.bonus_balance < amount) return 0;
+  // FIFO: eskirmagan kreditlardan eski tartibda olamiz
+  const credits = db.prepare("SELECT id, remaining FROM bonus_transactions WHERE customer_telegram_id=? AND kind='credit' AND remaining>0 AND (expires_at IS NULL OR expires_at>datetime('now')) ORDER BY created_at ASC").all(tid);
+  let toSpend = amount;
+  const updateRem = db.prepare('UPDATE bonus_transactions SET remaining=remaining-? WHERE id=?');
+  for (const c of credits) {
+    if (toSpend <= 0) break;
+    const take = Math.min(toSpend, c.remaining);
+    updateRem.run(take, c.id);
+    toSpend -= take;
+  }
+  if (toSpend > 0) return 0; // theoretically unreachable
+  db.prepare("INSERT INTO bonus_transactions (customer_telegram_id, amount, remaining, kind, reason, order_id) VALUES (?, ?, 0, 'debit', ?, ?)")
+    .run(tid, amount, reason, orderId);
+  db.prepare('UPDATE customers SET bonus_balance=bonus_balance-?, total_spent=total_spent+? WHERE telegram_id=?')
+    .run(amount, amount, tid);
+  return amount;
+}
+
+function expireBonuses() {
+  // Eskirgan kreditlardan qolgan miqdorni balansdan ayirib, expire transaksiyasi yozamiz
+  const rows = db.prepare("SELECT id, customer_telegram_id, remaining FROM bonus_transactions WHERE kind='credit' AND remaining>0 AND expires_at IS NOT NULL AND expires_at<=datetime('now')").all();
+  for (const r of rows) {
+    db.prepare('UPDATE bonus_transactions SET remaining=0 WHERE id=?').run(r.id);
+    db.prepare("INSERT INTO bonus_transactions (customer_telegram_id, amount, remaining, kind, reason) VALUES (?, ?, 0, 'expire', 'ttl_expired')")
+      .run(r.customer_telegram_id, r.remaining);
+    db.prepare('UPDATE customers SET bonus_balance=bonus_balance-? WHERE telegram_id=?')
+      .run(r.remaining, r.customer_telegram_id);
+  }
+  return rows.length;
+}
+
+// Har 30 daqiqada eskirgan bonuslarni tozalaymiz
+setInterval(() => { try { expireBonuses(); } catch(e) {} }, 30*60*1000);
+
+function maxBonusForOrder(orderTotal, customerBalance) {
+  const cap = Math.floor(orderTotal * MAX_BONUS_USE_PERCENT / 100);
+  return Math.max(0, Math.min(customerBalance, cap));
+}
+
+function bonusEarnedFor(order) {
+  // Bonusdan to'langan qism uchun cashback berilmaydi
+  const payable = (order.total || 0) - (order.bonus_used || 0);
+  return Math.max(0, Math.floor(payable * BONUS_PERCENT / 100));
+}
+
 // ── BOT ──────────────────────────────────────────────────────────────────────
 
 bot.start(async ctx => {
   const id = String(ctx.from.id);
   db.prepare('INSERT OR IGNORE INTO users (telegram_id,first_name,last_name,username) VALUES (?,?,?,?)').run(id, ctx.from.first_name, ctx.from.last_name||'', ctx.from.username||'');
 
-  // Eski persistent reply keyboardni tozalash
-  await ctx.reply('Salom, '+ctx.from.first_name+'! 👋', Markup.removeKeyboard()).catch(()=>{});
-
+  // Admin va kuryerlar — alohida flow
   if (ADMIN_IDS.includes(id)) {
     db.prepare("UPDATE users SET role='admin' WHERE telegram_id=?").run(id);
+    await ctx.reply('Salom, '+ctx.from.first_name+'! 👋', Markup.removeKeyboard()).catch(()=>{});
     return ctx.reply('Admin panelga xush kelibsiz!', Markup.inlineKeyboard([
       [Markup.button.webApp('📊 Admin Panel', APP_URL+'/admin.html?uid='+id)]
     ]));
   }
   if (COURIER_IDS.includes(id)) {
     db.prepare("UPDATE users SET role='courier' WHERE telegram_id=?").run(id);
+    await ctx.reply('Salom, '+ctx.from.first_name+'! 👋', Markup.removeKeyboard()).catch(()=>{});
     return ctx.reply('Kuryer paneliga xush kelibsiz!', Markup.inlineKeyboard([
       [Markup.button.webApp('🛵 Buyurtmalarim', APP_URL+'/courier.html?uid='+id)]
     ]));
   }
-  return ctx.reply(
-    '🍔 Buono Burger ga xush kelibsiz!\nBurger, lavash, hot-dog va boshqalarni tez yetkazib beramiz.\n\n⏰ Ish vaqti: 10:00–23:00',
-    Markup.inlineKeyboard([
+
+  // Oddiy mijoz: ro'yxatdan o'tganmi tekshiramiz
+  const customer = getCustomer(id);
+  if (!customer) {
+    return ctx.reply(
+      '🍔 Buono Burger ga xush kelibsiz!\n\nRo\'yxatdan o\'tib, sizga maxsus karta va '+WELCOME_BONUS.toLocaleString()+" so'm sovg'a bonus beramiz!\n\nIltimos telefon raqamingizni yuboring:",
+      {
+        reply_markup: {
+          keyboard: [[{text: "📞 Telefon raqamni yuborish", request_contact: true}]],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        }
+      }
+    );
+  }
+
+  // Mavjud mijoz: karta ma'lumotlari + tugmalar
+  await ctx.reply('Salom, '+ctx.from.first_name+'! 👋', Markup.removeKeyboard()).catch(()=>{});
+  return showCustomerHome(ctx, customer);
+});
+
+async function showCustomerHome(ctx, customer) {
+  const greeting = '🍔 Buono Burger\n\n'+
+    '🎫 Karta raqami: <code>'+customer.card_number+'</code>\n'+
+    '💰 Bonus balans: <b>'+customer.bonus_balance.toLocaleString()+" so'm</b>\n\n"+
+    '⏰ Ish vaqti: 10:00–23:00';
+  return ctx.reply(greeting, {
+    parse_mode: 'HTML',
+    reply_markup: Markup.inlineKeyboard([
       [Markup.button.webApp('🛒 Menyuni ochish', APP_URL+'/index.html')],
+      [Markup.button.webApp('🎫 Mening kartam', APP_URL+'/index.html#card')],
       [Markup.button.callback('⭐ Baho berish', 'fb_main')]
-    ])
-  );
+    ]).reply_markup
+  });
+}
+
+// Telefon raqami olinganda — ro'yxatdan o'tkazamiz
+bot.on('contact', async ctx => {
+  try {
+    const id = String(ctx.from.id);
+    const contact = ctx.message.contact;
+    // Faqat o'z kontaktini yuborganida qabul qilamiz
+    if (String(contact.user_id) !== id) {
+      return ctx.reply("❌ Iltimos o'z telefon raqamingizni yuboring.");
+    }
+    const phone = contact.phone_number;
+    const { customer, isNew } = registerCustomer(id, ctx.from.first_name, ctx.from.last_name, ctx.from.username, phone);
+
+    // Reply keyboardni tozalash
+    await ctx.reply(
+      isNew
+        ? '✅ Ro\'yxatdan o\'tdingiz!\n\n🎫 Sizning karta raqamingiz: <code>'+customer.card_number+'</code>\n🎁 Sovg\'a bonus: <b>'+WELCOME_BONUS.toLocaleString()+" so'm</b>\n📅 Bonus muddati: "+BONUS_TTL_DAYS+' kun\n\nKartani "Mening kartam" tugmasi orqali ko\'rishingiz mumkin.'
+        : '✅ Telefon raqamingiz yangilandi.\n\n🎫 Karta: <code>'+customer.card_number+'</code>',
+      { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
+    );
+    return showCustomerHome(ctx, getCustomer(id));
+  } catch(e) { console.error('contact error:', e.message); }
+});
+
+bot.command('karta', async ctx => {
+  const id = String(ctx.from.id);
+  const customer = getCustomer(id);
+  if (!customer) return ctx.reply("Iltimos /start bosing va ro'yxatdan o'ting.");
+  return showCustomerHome(ctx, customer);
 });
 
 // ── FEEDBACK (buonoFB_bot dan ko'chirildi) ───────────────────────────────────
@@ -446,7 +613,22 @@ function notifyCustomer(order) {
   if (order.status==='on_way' || order.status==='delivered') {
     msg += "\n\n💳 To'lov: "+paymentLabel(order);
   }
-  bot.telegram.sendMessage(order.user_id, msg).catch(()=>{});
+
+  // Yetkazilganda — cashback hisoblash
+  if (order.status === 'delivered' && order.user_id && order.user_id !== 'anon' && !order.cashback_credited) {
+    const eligible = order.payment === 'cash' || order.payment_status === 'paid';
+    if (eligible) {
+      const cashback = bonusEarnedFor(order);
+      if (cashback > 0 && getCustomer(order.user_id)) {
+        creditBonus(order.user_id, cashback, 'order_cashback', order.id);
+        db.prepare('UPDATE orders SET cashback_credited=1 WHERE id=?').run(order.id);
+        const cust = getCustomer(order.user_id);
+        msg += '\n\n💰 Buyurtmangiz uchun <b>+'+cashback.toLocaleString()+" so'm</b> bonus hisoblandi.\nJoriy balans: <b>"+cust.bonus_balance.toLocaleString()+" so'm</b>";
+      }
+    }
+  }
+
+  bot.telegram.sendMessage(order.user_id, msg, {parse_mode: 'HTML'}).catch(()=>{});
 
   // Yetkazilgandan keyin baho so'rash (rasmda ko'rsatilganidek 3 ta tugma)
   if (order.status === 'delivered' && order.user_id && order.user_id !== 'anon' && !order.feedback_sent) {
@@ -485,17 +667,79 @@ app.post('/api/user', (req, res) => {
 
 app.post('/api/orders', async (req, res) => {
   const { user_id, user_name, user_phone, items, total, address, lat, lng, comment, payment } = req.body;
+  let bonusUsed = Math.max(0, parseInt(req.body.bonus_used || 0) || 0);
 
   const allowed = ['cash', 'click', 'payme'];
   if (!allowed.includes(payment)) return res.status(400).json({ error: 'Invalid payment method' });
 
-  const r = db.prepare('INSERT INTO orders (user_id,user_name,user_phone,items,total,address,lat,lng,comment,payment) VALUES (?,?,?,?,?,?,?,?,?,?)')
-    .run(user_id, user_name, user_phone, JSON.stringify(items), total, address, lat, lng, comment, payment);
+  // Bonus ishlatish — validatsiya
+  if (bonusUsed > 0) {
+    const customer = getCustomer(user_id);
+    if (!customer) return res.status(400).json({ error: 'Bonus ishlatish uchun ro\'yxatdan o\'ting' });
+    const allowedMax = maxBonusForOrder(total, customer.bonus_balance);
+    if (bonusUsed > allowedMax) return res.status(400).json({ error: "Bonus limiti oshib ketdi. Maksimum: "+allowedMax.toLocaleString()+" so'm" });
+  }
+
+  const r = db.prepare('INSERT INTO orders (user_id,user_name,user_phone,items,total,address,lat,lng,comment,payment,bonus_used) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    .run(user_id, user_name, user_phone, JSON.stringify(items), total, address, lat, lng, comment, payment, bonusUsed);
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(r.lastInsertRowid);
+
+  if (bonusUsed > 0) {
+    debitBonus(user_id, bonusUsed, 'order_spend', order.id);
+  }
 
   notifyAdmin(order);
 
   res.json({ ok: true, order_id: r.lastInsertRowid });
+});
+
+// Mijoz profili: balans, karta, oxirgi tranzaksiyalar
+app.get('/api/customer/me', (req, res) => {
+  const tid = getTid(req);
+  if (!tid) return res.status(401).json({ error: 'No telegram_id' });
+  const customer = getCustomer(tid);
+  if (!customer) return res.json({ registered: false });
+  const tx = db.prepare("SELECT id, amount, kind, reason, order_id, expires_at, created_at FROM bonus_transactions WHERE customer_telegram_id=? ORDER BY created_at DESC LIMIT 30").all(tid);
+  // Eng yaqin tugaydigan kredit
+  const nextExpire = db.prepare("SELECT MIN(expires_at) as next_expire FROM bonus_transactions WHERE customer_telegram_id=? AND kind='credit' AND remaining>0 AND expires_at>datetime('now')").get(tid);
+  res.json({
+    registered: true,
+    card_number: customer.card_number,
+    bonus_balance: customer.bonus_balance,
+    total_earned: customer.total_earned,
+    total_spent: customer.total_spent,
+    phone: customer.phone,
+    first_name: customer.first_name,
+    transactions: tx,
+    next_expire: nextExpire ? nextExpire.next_expire : null,
+    config: {
+      bonus_percent: BONUS_PERCENT,
+      welcome_bonus: WELCOME_BONUS,
+      ttl_days: BONUS_TTL_DAYS,
+      max_use_percent: MAX_BONUS_USE_PERCENT
+    }
+  });
+});
+
+// QR kod rasm — karta_raqami ni kodlaydi
+app.get('/qr/:cardNumber', async (req, res) => {
+  const cn = (req.params.cardNumber || '').replace(/\.png$/i, '').replace(/\D/g, '');
+  if (!cn || cn.length < 6) return res.status(400).send('invalid');
+  try {
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    const buf = await QRCode.toBuffer(cn, { width: 400, margin: 2, errorCorrectionLevel: 'M' });
+    res.send(buf);
+  } catch(e) {
+    res.status(500).send('error');
+  }
+});
+
+// Admin ko'rinish: barcha mijozlar bazasi
+app.get('/api/admin/customers', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  const customers = db.prepare("SELECT * FROM customers ORDER BY created_at DESC LIMIT 500").all();
+  res.json(customers);
 });
 
 app.get('/api/orders/my', (req, res) => {
