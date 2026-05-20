@@ -1,6 +1,6 @@
 // iiko Cloud API client
 // Hujjat: https://api-ru.iiko.services/api/1/help
-const BASE = 'https://api-ru.iiko.services/api/1';
+const BASE = 'https://api-ru.iiko.services';
 
 const API_LOGIN = process.env.IIKO_API_LOGIN || '';
 const ORG_ID = process.env.IIKO_ORGANIZATION_ID || '';
@@ -13,7 +13,7 @@ function isConfigured() { return !!(API_LOGIN && ORG_ID); }
 
 async function getToken() {
   if (tokenCache.token && Date.now() < tokenCache.exp) return tokenCache.token;
-  const res = await fetch(BASE + '/access_token', {
+  const res = await fetch(BASE + '/api/1/access_token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ apiLogin: API_LOGIN })
@@ -55,15 +55,24 @@ async function call(path, body, retry = true) {
 }
 
 async function getNomenclature() {
-  return call('/nomenclature', { organizationId: ORG_ID });
+  return call('/api/1/nomenclature', { organizationId: ORG_ID });
+}
+
+// External Menu (Внешнее меню) — yetkazib berish uchun
+async function listExternalMenus() {
+  return call('/api/2/menu', { organizationIds: [ORG_ID] });
+}
+
+async function getExternalMenu(externalMenuId) {
+  return call('/api/2/menu/by_id', { externalMenuId: String(externalMenuId), organizationIds: [ORG_ID] });
 }
 
 async function getTerminalGroups() {
-  return call('/terminal_groups', { organizationIds: [ORG_ID] });
+  return call('/api/1/terminal_groups', { organizationIds: [ORG_ID] });
 }
 
 async function getPaymentTypes() {
-  return call('/payment_types', { organizationIds: [ORG_ID] });
+  return call('/api/1/payment_types', { organizationIds: [ORG_ID] });
 }
 
 // Buyurtmani iiko-ga yuborish
@@ -99,13 +108,13 @@ async function createDelivery(payload) {
       address: { street: { name: payload.address }, house: payload.house || '-', city: 'Tashkent' }
     };
   }
-  return call('/deliveries/create', body);
+  return call('/api/1/deliveries/create', body);
 }
 
 // CRM bo'lganda — mijoz sinxronizatsiyasi
 async function customerCreateOrUpdate(customer) {
   if (!isConfigured() || !CRM_ENABLED) return null;
-  return call('/loyalty/iiko/customer/create_or_update', {
+  return call('/api/1/loyalty/iiko/customer/create_or_update', {
     organizationId: ORG_ID,
     phone: customer.phone,
     name: customer.first_name || '',
@@ -117,7 +126,7 @@ async function customerCreateOrUpdate(customer) {
 
 async function customerInfo(phone) {
   if (!isConfigured() || !CRM_ENABLED) return null;
-  return call('/loyalty/iiko/customer/info', {
+  return call('/api/1/loyalty/iiko/customer/info', {
     organizationId: ORG_ID,
     type: 'phone',
     phone
@@ -126,7 +135,7 @@ async function customerInfo(phone) {
 
 async function customerRefillWallet(customerId, walletId, sum, comment) {
   if (!isConfigured() || !CRM_ENABLED) return null;
-  return call('/loyalty/iiko/customer/wallet/refill', {
+  return call('/api/1/loyalty/iiko/customer/wallet/refill', {
     organizationId: ORG_ID,
     customerId,
     walletId,
@@ -141,6 +150,8 @@ module.exports = {
   config: { ORG_ID, TERMINAL_GROUP_ID },
   getToken,
   getNomenclature,
+  listExternalMenus,
+  getExternalMenu,
   getTerminalGroups,
   getPaymentTypes,
   createDelivery,

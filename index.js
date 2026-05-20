@@ -168,38 +168,34 @@ function bonusEarnedFor(order) {
 
 async function syncIikoMenu() {
   if (!iiko.isConfigured()) return { ok: false, reason: 'not_configured' };
-  const data = await iiko.getNomenclature();
-  const groups = data.groups || [];
-  const products = data.products || [];
 
-  const groupById = new Map(groups.map(g => [g.id, g]));
-  // Faqat "Внешнее меню" (External Menu) da yoqilgan mahsulotlar:
-  //   isDeleted=false AND sizePrices[0].price.isIncludedInMenu=true AND price>0
-  const activeProducts = products.filter(p => {
-    if (p.type !== 'Dish' && p.type !== 'Good') return false;
-    if (p.isDeleted) return false;
-    const sp = p.sizePrices && p.sizePrices[0];
-    if (!sp || !sp.price) return false;
-    if (sp.price.isIncludedInMenu === false) return false;
-    if (!sp.price.currentPrice || sp.price.currentPrice <= 0) return false;
-    return true;
-  });
-  const usedCategoryIds = new Set(activeProducts.map(p => p.parentGroup).filter(Boolean));
-  const usedCategories = Array.from(usedCategoryIds).map(id => groupById.get(id)).filter(Boolean);
-  usedCategories.sort((a, b) => (a.order || 0) - (b.order || 0));
+  let menuId = process.env.IIKO_EXTERNAL_MENU_ID;
+  // Agar IIKO_EXTERNAL_MENU_ID env-da yo'q bo'lsa, birinchi mavjudini olamiz
+  if (!menuId) {
+    try {
+      const list = await iiko.listExternalMenus();
+      if (list.externalMenus && list.externalMenus.length > 0) {
+        menuId = list.externalMenus[0].id;
+      }
+    } catch(e) {}
+  }
+  if (!menuId) return { ok: false, reason: 'no_external_menu' };
+
+  const data = await iiko.getExternalMenu(menuId);
+  const orgId = iiko.config.ORG_ID;
+  const itemCategories = data.itemCategories || [];
 
   // Kategoriyalarni upsert
   const catIdByIiko = new Map();
   let order = 1;
-  for (const g of usedCategories) {
-    // "1. Бургеры" → "Бургеры" (raqamli prefiks olib tashlash)
-    const cleanName = (g.name || '').replace(/^\s*\d+\.\s*/, '').trim() || g.name;
+  for (const g of itemCategories) {
+    const name = (g.name || '').trim() || 'Menyu';
     const existing = db.prepare('SELECT id FROM categories WHERE iiko_group_id=?').get(g.id);
     if (existing) {
-      db.prepare('UPDATE categories SET name_uz=?, name_ru=?, sort_order=?, active=1 WHERE id=?').run(cleanName, cleanName, order, existing.id);
+      db.prepare('UPDATE categories SET name_uz=?, name_ru=?, sort_order=?, active=1 WHERE id=?').run(name, name, order, existing.id);
       catIdByIiko.set(g.id, existing.id);
     } else {
-      const r = db.prepare('INSERT INTO categories (name_uz, name_ru, emoji, sort_order, active, iiko_group_id) VALUES (?, ?, ?, ?, 1, ?)').run(cleanName, cleanName, '🍽', order, g.id);
+      const r = db.prepare('INSERT INTO categories (name_uz, name_ru, emoji, sort_order, active, iiko_group_id) VALUES (?, ?, ?, ?, 1, ?)').run(name, name, '🍽', order, g.id);
       catIdByIiko.set(g.id, r.lastInsertRowid);
     }
     order++;
@@ -208,45 +204,60 @@ async function syncIikoMenu() {
   // Mahsulotlarni upsert
   let synced = 0;
   const allIikoIds = new Set();
-  for (const p of activeProducts) {
-    const categoryId = catIdByIiko.get(p.parentGroup);
+  for (const g of itemCategories) {
+    const categoryId = catIdByIiko.get(g.id);
     if (!categoryId) continue;
-    const price = (p.sizePrices && p.sizePrices[0] && p.sizePrices[0].price && p.sizePrices[0].price.currentPrice) || 0;
-    if (price <= 0) continue;
+    const items = g.items || [];
+    for (const it of items) {
+      if (it.type !== 'DISH' && it.type !== 'GOOD' && it.type !== 'Dish' && it.type !== 'Good') continue;
+      const size = (it.itemSizes && it.itemSizes[0]) || null;
+      if (!size) continue;
+      if (size.isHidden) continue;
+      const priceObj = (size.prices || []).find(p => p.organizationId === orgId) || size.prices[0];
+      if (!priceObj || !priceObj.price || priceObj.price <= 0) continue;
 
-    allIikoIds.add(p.id);
-    const name = (p.name || '').trim();
-    const desc = (p.description || '').trim();
-    const image = (p.imageLinks && p.imageLinks[0]) || '';
+      const iikoId = it.itemId;
+      allIikoIds.add(iikoId);
+      const name = (it.name || '').trim();
+      const desc = (it.description || '').trim();
+      const image = size.buttonImageUrl || '';
+      const price = Math.round(priceObj.price);
 
-    const existing = db.prepare('SELECT id FROM products WHERE iiko_id=?').get(p.id);
-    if (existing) {
-      db.prepare('UPDATE products SET name_uz=?, name_ru=?, desc_uz=?, desc_ru=?, price=?, category_id=?, image=COALESCE(NULLIF(?, ""), image), active=1, iiko_group_id=? WHERE id=?')
-        .run(name, name, desc, desc, price, categoryId, image, p.parentGroup, existing.id);
-    } else {
-      db.prepare('INSERT INTO products (name_uz, name_ru, desc_uz, desc_ru, price, category_id, image, active, iiko_id, iiko_group_id) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)')
-        .run(name, name, desc, desc, price, categoryId, image, p.id, p.parentGroup);
+      const existing = db.prepare('SELECT id FROM products WHERE iiko_id=?').get(iikoId);
+      if (existing) {
+        db.prepare('UPDATE products SET name_uz=?, name_ru=?, desc_uz=?, desc_ru=?, price=?, category_id=?, image=COALESCE(NULLIF(?, ""), image), active=1, iiko_group_id=? WHERE id=?')
+          .run(name, name, desc, desc, price, categoryId, image, g.id, existing.id);
+      } else {
+        db.prepare('INSERT INTO products (name_uz, name_ru, desc_uz, desc_ru, price, category_id, image, active, iiko_id, iiko_group_id) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)')
+          .run(name, name, desc, desc, price, categoryId, image, iikoId, g.id);
+      }
+      synced++;
     }
-    synced++;
   }
 
-  // iiko-da yo'q (eski iiko mahsulotlari) nofaol qilamiz — faqat iiko_id BOR bo'lganlar
-  const placeholders = Array.from(allIikoIds).map(() => '?').join(',');
+  // iiko-da yo'q bo'lgan eski iiko mahsulotlarini nofaol qilamiz
   let deactivated = 0;
   if (allIikoIds.size > 0) {
+    const placeholders = Array.from(allIikoIds).map(() => '?').join(',');
     const r = db.prepare(`UPDATE products SET active=0 WHERE iiko_id IS NOT NULL AND iiko_id NOT IN (${placeholders})`).run(...Array.from(allIikoIds));
     deactivated = r.changes;
   }
 
-  // Seed kategoriyalarini o'chirish faqat IIKO_REPLACE_LOCAL_MENU=true bo'lganda
-  // (default: iiko menyusi va seed menyu yonma-yon ishlaydi)
-  const replaceLocal = (process.env.IIKO_REPLACE_LOCAL_MENU || 'false').toLowerCase() === 'true';
-  if (replaceLocal && synced >= 10) {
+  // Iiko-dagi guruhlardan yo'qolganlarni ham o'chiramiz
+  const allGroupIds = itemCategories.map(g => g.id);
+  if (allGroupIds.length > 0) {
+    const ph = allGroupIds.map(() => '?').join(',');
+    db.prepare(`UPDATE categories SET active=0 WHERE iiko_group_id IS NOT NULL AND iiko_group_id NOT IN (${ph})`).run(...allGroupIds);
+  }
+
+  // Seed (iiko_id NULL) kategoriyalarini o'chirish — replaceLocal flag bilan
+  const replaceLocal = (process.env.IIKO_REPLACE_LOCAL_MENU || 'true').toLowerCase() === 'true';
+  if (replaceLocal && synced >= 5) {
     db.prepare("UPDATE categories SET active=0 WHERE iiko_group_id IS NULL").run();
     db.prepare("UPDATE products SET active=0 WHERE iiko_id IS NULL").run();
   }
 
-  return { ok: true, groups: usedCategories.length, synced, deactivated, replaced_local: replaceLocal && synced>=10 };
+  return { ok: true, menu_id: menuId, groups: itemCategories.length, synced, deactivated, replaced_local: replaceLocal && synced>=5 };
 }
 
 // Buyurtmani iiko-ga yuborish
