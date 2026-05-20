@@ -4,6 +4,7 @@ const express = require('express');
 const path = require('path');
 const QRCode = require('qrcode');
 const db = require('./db');
+const iiko = require('./iiko');
 
 // Bonus tizimi konfiguratsiyasi
 const BONUS_PERCENT = parseFloat(process.env.BONUS_PERCENT || '3');
@@ -82,7 +83,21 @@ function registerCustomer(telegramId, firstName, lastName, username, phone) {
   if (WELCOME_BONUS > 0) {
     creditBonus(telegramId, WELCOME_BONUS, 'welcome', null);
   }
-  return { customer: getCustomer(telegramId), isNew: true };
+
+  // iiko CRM ga sinxronlash (agar yoqilgan bo'lsa)
+  const customer = getCustomer(telegramId);
+  if (iiko.isConfigured() && iiko.crmEnabled()) {
+    setImmediate(async () => {
+      try {
+        const r = await iiko.customerCreateOrUpdate(customer);
+        if (r && r.id) {
+          db.prepare('UPDATE customers SET iiko_customer_id=? WHERE telegram_id=?').run(r.id, customer.telegram_id);
+        }
+      } catch(e) { console.warn('[iiko] customer sync failed:', e.message); }
+    });
+  }
+
+  return { customer, isNew: true };
 }
 
 function creditBonus(telegramId, amount, reason, orderId) {
@@ -145,6 +160,116 @@ function bonusEarnedFor(order) {
   // Bonusdan to'langan qism uchun cashback berilmaydi
   const payable = (order.total || 0) - (order.bonus_used || 0);
   return Math.max(0, Math.floor(payable * BONUS_PERCENT / 100));
+}
+
+// ── IIKO SYNC ────────────────────────────────────────────────────────────────
+
+async function syncIikoMenu() {
+  if (!iiko.isConfigured()) return { ok: false, reason: 'not_configured' };
+  const data = await iiko.getNomenclature();
+  const groups = data.groups || [];
+  const products = data.products || [];
+
+  // 1. Kategoriyalarni upsert qilamiz (faqat top-level guruhlar)
+  const topGroups = groups.filter(g => !g.parentGroup);
+  const upsertCat = db.prepare(`INSERT INTO categories (name_uz, name_ru, emoji, sort_order, active, iiko_group_id)
+    VALUES (?, ?, ?, ?, 1, ?)
+    ON CONFLICT(iiko_group_id) DO UPDATE SET name_uz=excluded.name_uz, name_ru=excluded.name_ru, sort_order=excluded.sort_order, active=1`);
+  // SQLite: iiko_group_id mavjud emas bo'lishi mumkin (column qo'shildi keyin), shu sababli ON CONFLICT ishlamasligi mumkin.
+  // Birinchi: noyob index yarataman:
+  try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_cat_iiko ON categories(iiko_group_id) WHERE iiko_group_id IS NOT NULL'); } catch(e) {}
+  try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_prod_iiko ON products(iiko_id) WHERE iiko_id IS NOT NULL'); } catch(e) {}
+
+  const catIdByIiko = new Map();
+  // Bizning categories jadvalida iiko_group_id orqali qidiramiz, agar yo'q bo'lsa qo'shamiz
+  topGroups.sort((a,b) => (a.order||0) - (b.order||0));
+  let order = 1;
+  for (const g of topGroups) {
+    const existing = db.prepare('SELECT id FROM categories WHERE iiko_group_id=?').get(g.id);
+    if (existing) {
+      db.prepare('UPDATE categories SET name_uz=?, name_ru=?, sort_order=?, active=1 WHERE id=?').run(g.name, g.name, order, existing.id);
+      catIdByIiko.set(g.id, existing.id);
+    } else {
+      const r = db.prepare('INSERT INTO categories (name_uz, name_ru, emoji, sort_order, active, iiko_group_id) VALUES (?, ?, ?, ?, 1, ?)').run(g.name, g.name, '🍽', order, g.id);
+      catIdByIiko.set(g.id, r.lastInsertRowid);
+    }
+    order++;
+  }
+
+  // Subgroups → parent group bilan bog'lash uchun map
+  const groupTopMap = new Map();
+  for (const g of groups) {
+    let cur = g, depth = 0;
+    while (cur && cur.parentGroup && depth < 10) {
+      cur = groups.find(x => x.id === cur.parentGroup);
+      depth++;
+    }
+    if (cur) groupTopMap.set(g.id, cur.id);
+  }
+
+  // 2. Mahsulotlarni upsert qilamiz
+  let synced = 0;
+  const allIikoIds = new Set();
+  for (const p of products) {
+    // Faqat asosiy mahsulotlar (modifierlar emas)
+    if (p.type !== 'Dish' && p.type !== 'Good') continue;
+    const topGroup = groupTopMap.get(p.parentGroup);
+    if (!topGroup) continue;
+    const categoryId = catIdByIiko.get(topGroup);
+    if (!categoryId) continue;
+    const price = (p.sizePrices && p.sizePrices[0] && p.sizePrices[0].price && p.sizePrices[0].price.currentPrice) || 0;
+    if (price <= 0) continue;
+    if (p.isDeleted) continue;
+
+    allIikoIds.add(p.id);
+    const name = (p.name || '').trim();
+    const desc = (p.description || '').trim();
+
+    const existing = db.prepare('SELECT id FROM products WHERE iiko_id=?').get(p.id);
+    if (existing) {
+      db.prepare('UPDATE products SET name_uz=?, name_ru=?, desc_uz=?, desc_ru=?, price=?, category_id=?, active=1, iiko_group_id=? WHERE id=?')
+        .run(name, name, desc, desc, price, categoryId, topGroup, existing.id);
+    } else {
+      db.prepare('INSERT INTO products (name_uz, name_ru, desc_uz, desc_ru, price, category_id, image, active, iiko_id, iiko_group_id) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)')
+        .run(name, name, desc, desc, price, categoryId, '', p.id, topGroup);
+    }
+    synced++;
+  }
+
+  // 3. iiko-da yo'q mahsulotlarni nofaol qilamiz
+  const placeholders = Array.from(allIikoIds).map(() => '?').join(',');
+  let deactivated = 0;
+  if (allIikoIds.size > 0) {
+    const r = db.prepare(`UPDATE products SET active=0 WHERE iiko_id IS NOT NULL AND iiko_id NOT IN (${placeholders})`).run(...Array.from(allIikoIds));
+    deactivated = r.changes;
+  }
+
+  return { ok: true, groups: topGroups.length, synced, deactivated };
+}
+
+// Buyurtmani iiko-ga yuborish
+async function pushOrderToIiko(order, items) {
+  if (!iiko.isConfigured()) return { skipped: 'not_configured' };
+  // Mahsulotlar ichida iiko_id bor mahsulotlarni tanlaymiz
+  const mapped = items.map(it => {
+    const prod = db.prepare('SELECT iiko_id FROM products WHERE id=?').get(it.id);
+    return { iikoProductId: prod && prod.iiko_id || null, amount: it.qty, comment: it.name_uz };
+  }).filter(x => x.iikoProductId);
+  if (mapped.length === 0) return { skipped: 'no_iiko_items' };
+
+  try {
+    const r = await iiko.createDelivery({
+      phone: order.user_phone || '',
+      customerName: order.user_name || '',
+      items: mapped,
+      comment: '🎫 Karta: '+(order.card_number||'-')+'\n'+(order.comment || ''),
+      address: order.address || '',
+      deliveryType: order.delivery_type === 'pickup' ? 'pickup' : 'delivery'
+    });
+    return { ok: true, orderId: r && r.orderInfo && r.orderInfo.id };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 }
 
 // ── BOT ──────────────────────────────────────────────────────────────────────
@@ -690,7 +815,59 @@ app.post('/api/orders', async (req, res) => {
 
   notifyAdmin(order);
 
+  // iiko-ga buyurtma yuborish (fonda)
+  if (iiko.isConfigured()) {
+    const customer = getCustomer(user_id);
+    const itemsArr = JSON.parse(order.items);
+    setImmediate(async () => {
+      try {
+        const result = await pushOrderToIiko({
+          user_name: order.user_name,
+          user_phone: order.user_phone,
+          address: order.address,
+          comment: order.comment,
+          delivery_type: order.delivery_type,
+          card_number: customer && customer.card_number
+        }, itemsArr);
+        if (result.ok && result.orderId) {
+          db.prepare('UPDATE orders SET iiko_order_id=? WHERE id=?').run(result.orderId, order.id);
+        } else if (result.error) {
+          db.prepare('UPDATE orders SET iiko_sync_error=? WHERE id=?').run(result.error.slice(0, 250), order.id);
+          console.warn('[iiko] order#'+order.id+' sync failed:', result.error);
+        }
+      } catch(e) { console.warn('[iiko] push exception:', e.message); }
+    });
+  }
+
   res.json({ ok: true, order_id: r.lastInsertRowid });
+});
+
+// Admin: iiko menyusini qo'lda sinxronlash
+app.post('/api/admin/iiko/sync-menu', async (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  if (!iiko.isConfigured()) return res.status(400).json({ error: 'iiko not configured' });
+  try {
+    const result = await syncIikoMenu();
+    res.json(result);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Admin: iiko ulanish holati va konfiguratsiya
+app.get('/api/admin/iiko/status', async (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  const out = {
+    configured: iiko.isConfigured(),
+    crm_enabled: iiko.crmEnabled(),
+    organization_id: iiko.config.ORG_ID || null,
+    terminal_group_id: iiko.config.TERMINAL_GROUP_ID || null
+  };
+  if (out.configured) {
+    try { await iiko.getToken(); out.token_ok = true; }
+    catch(e) { out.token_ok = false; out.token_error = e.message; }
+  }
+  res.json(out);
 });
 
 // Mijoz profili: balans, karta, oxirgi tranzaksiyalar
@@ -861,5 +1038,16 @@ app.put('/api/courier/orders/:id', (req, res) => {
 
 app.listen(PORT, () => console.log('Server: ' + PORT));
 bot.launch();
+
+// iiko menyusini avtomatik sinxronlash (ishga tushganda + har 4 soatda)
+if (iiko.isConfigured()) {
+  const runSync = () => syncIikoMenu()
+    .then(r => console.log('[iiko] menu sync:', JSON.stringify(r)))
+    .catch(e => console.warn('[iiko] menu sync error:', e.message));
+  setTimeout(runSync, 10*1000); // ishga tushgandan 10s keyin
+  setInterval(runSync, 4*60*60*1000);
+} else {
+  console.log('[iiko] not configured (set IIKO_API_LOGIN, IIKO_ORGANIZATION_ID)');
+}
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));

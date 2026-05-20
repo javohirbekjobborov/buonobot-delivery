@@ -81,6 +81,13 @@ db.exec(`
 
 try { db.exec("ALTER TABLE orders ADD COLUMN bonus_used INTEGER DEFAULT 0"); } catch(e) {}
 try { db.exec("ALTER TABLE orders ADD COLUMN cashback_credited INTEGER DEFAULT 0"); } catch(e) {}
+try { db.exec("ALTER TABLE orders ADD COLUMN iiko_order_id TEXT"); } catch(e) {}
+try { db.exec("ALTER TABLE orders ADD COLUMN iiko_sync_error TEXT"); } catch(e) {}
+try { db.exec("ALTER TABLE products ADD COLUMN iiko_id TEXT"); } catch(e) {}
+try { db.exec("ALTER TABLE products ADD COLUMN iiko_group_id TEXT"); } catch(e) {}
+try { db.exec("ALTER TABLE categories ADD COLUMN iiko_group_id TEXT"); } catch(e) {}
+try { db.exec("CREATE INDEX IF NOT EXISTS idx_products_iiko ON products(iiko_id)"); } catch(e) {}
+try { db.exec("CREATE INDEX IF NOT EXISTS idx_cats_iiko ON categories(iiko_group_id)"); } catch(e) {}
 
 try { db.exec("ALTER TABLE orders ADD COLUMN feedback_sent INTEGER DEFAULT 0"); } catch(e) {}
 
