@@ -32,8 +32,7 @@ async function call(path, body, retry = true) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + token,
-      'Timeout': '15'
+      'Authorization': 'Bearer ' + token
     },
     body: JSON.stringify(body || {})
   });
