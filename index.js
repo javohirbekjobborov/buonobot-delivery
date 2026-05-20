@@ -874,11 +874,32 @@ app.get('/api/admin/iiko/status', async (req, res) => {
     configured: iiko.isConfigured(),
     crm_enabled: iiko.crmEnabled(),
     organization_id: iiko.config.ORG_ID || null,
-    terminal_group_id: iiko.config.TERMINAL_GROUP_ID || null
+    terminal_group_id: iiko.config.TERMINAL_GROUP_ID || null,
+    external_menu_id: process.env.IIKO_EXTERNAL_MENU_ID || null
   };
   if (out.configured) {
     try { await iiko.getToken(); out.token_ok = true; }
     catch(e) { out.token_ok = false; out.token_error = e.message; }
+    // Diagnostika: nomenclature, list menus, external menu
+    try {
+      const noms = await iiko.getNomenclature();
+      out.nomenclature_ok = true;
+      out.nomenclature_products = (noms.products||[]).length;
+    } catch(e) { out.nomenclature_ok = false; out.nomenclature_error = (e.message||'').slice(0,300); }
+    try {
+      const list = await iiko.listExternalMenus();
+      out.menus_ok = true;
+      out.menus = (list.externalMenus||[]).map(m => ({id:m.id, name:m.name}));
+    } catch(e) { out.menus_ok = false; out.menus_error = (e.message||'').slice(0,300); }
+    try {
+      const menuId = process.env.IIKO_EXTERNAL_MENU_ID || (out.menus && out.menus[0] && out.menus[0].id);
+      if (menuId) {
+        const m = await iiko.getExternalMenu(menuId);
+        out.external_menu_ok = true;
+        out.external_menu_categories = (m.itemCategories||[]).length;
+        out.external_menu_items = (m.itemCategories||[]).reduce((s,c)=>s+(c.items||[]).length, 0);
+      }
+    } catch(e) { out.external_menu_ok = false; out.external_menu_error = (e.message||'').slice(0,300); }
   }
   res.json(out);
 });
