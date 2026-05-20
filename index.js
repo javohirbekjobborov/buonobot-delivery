@@ -173,8 +173,17 @@ async function syncIikoMenu() {
   const products = data.products || [];
 
   const groupById = new Map(groups.map(g => [g.id, g]));
-  // Aktiv (isDeleted bo'lmagan) Dish/Good mahsulotlar parent guruhlarini topamiz
-  const activeProducts = products.filter(p => (p.type === 'Dish' || p.type === 'Good') && !p.isDeleted);
+  // Faqat "Внешнее меню" (External Menu) da yoqilgan mahsulotlar:
+  //   isDeleted=false AND sizePrices[0].price.isIncludedInMenu=true AND price>0
+  const activeProducts = products.filter(p => {
+    if (p.type !== 'Dish' && p.type !== 'Good') return false;
+    if (p.isDeleted) return false;
+    const sp = p.sizePrices && p.sizePrices[0];
+    if (!sp || !sp.price) return false;
+    if (sp.price.isIncludedInMenu === false) return false;
+    if (!sp.price.currentPrice || sp.price.currentPrice <= 0) return false;
+    return true;
+  });
   const usedCategoryIds = new Set(activeProducts.map(p => p.parentGroup).filter(Boolean));
   const usedCategories = Array.from(usedCategoryIds).map(id => groupById.get(id)).filter(Boolean);
   usedCategories.sort((a, b) => (a.order || 0) - (b.order || 0));
