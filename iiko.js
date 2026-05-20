@@ -15,7 +15,11 @@ async function getToken() {
   if (tokenCache.token && Date.now() < tokenCache.exp) return tokenCache.token;
   const res = await fetch(BASE + '/api/1/access_token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': 'BuonoBotDelivery/1.0 (Node.js)'
+    },
     body: JSON.stringify({ apiLogin: API_LOGIN })
   });
   if (!res.ok) throw new Error('iiko token http ' + res.status);
@@ -32,7 +36,9 @@ async function call(path, body, retry = true) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + token
+      'Authorization': 'Bearer ' + token,
+      'Accept': 'application/json',
+      'User-Agent': 'BuonoBotDelivery/1.0 (Node.js; +https://buonobot-delivery-production.up.railway.app)'
     },
     body: JSON.stringify(body || {})
   });
