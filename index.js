@@ -12,6 +12,35 @@ const WELCOME_BONUS = parseInt(process.env.WELCOME_BONUS || '5000');
 const BONUS_TTL_DAYS = parseInt(process.env.BONUS_TTL_DAYS || '15');
 const MAX_BONUS_USE_PERCENT = parseInt(process.env.MAX_BONUS_USE_PERCENT || '50');
 
+// Restoran joylashuvi + yetkazib berish radiusi
+const RESTAURANT_LAT = parseFloat(process.env.RESTAURANT_LAT || '41.3588914');
+const RESTAURANT_LNG = parseFloat(process.env.RESTAURANT_LNG || '69.3366373');
+const RESTAURANT_ADDRESS = process.env.RESTAURANT_ADDRESS || "Yunusobod tumani, Gullola ko'chasi 13";
+const DELIVERY_RADIUS_KM = parseFloat(process.env.DELIVERY_RADIUS_KM || '3');
+const ETA_MIN_MINUTES = parseInt(process.env.ETA_MIN_MINUTES || '30');
+const ETA_MAX_MINUTES = parseInt(process.env.ETA_MAX_MINUTES || '60');
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// Joriy vaqtga 30-60 daqiqa qo'shib, mahalliy (UTC+5) vaqt oralig'i sifatida formatlaymiz
+function estimatedDeliveryWindow() {
+  const now = Date.now();
+  const min = new Date(now + ETA_MIN_MINUTES*60*1000 + 5*3600*1000);
+  const max = new Date(now + ETA_MAX_MINUTES*60*1000 + 5*3600*1000);
+  const fmt = d => String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');
+  return fmt(min) + '–' + fmt(max);
+}
+function estimatedDeliveryText() {
+  return ETA_MIN_MINUTES + '–' + ETA_MAX_MINUTES + ' daqiqa (taxminan ' + estimatedDeliveryWindow() + ')';
+}
+
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -748,6 +777,10 @@ function notifyCustomer(order) {
   };
   if (!m[order.status]) return;
   let msg = m[order.status];
+  // Taxminiy yetkazib berish vaqti — qabul qilingan va tayyorlanmoqda statuslarida
+  if (order.status === 'accepted' || order.status === 'cooking') {
+    msg += "\n\n⏰ Taxminiy yetkazib berish: " + estimatedDeliveryText();
+  }
   if (order.status==='on_way' || order.status==='delivered') {
     msg += "\n\n💳 To'lov: "+paymentLabel(order);
   }
@@ -806,9 +839,20 @@ app.post('/api/user', (req, res) => {
 app.post('/api/orders', async (req, res) => {
   const { user_id, user_name, user_phone, items, total, address, lat, lng, comment, payment } = req.body;
   let bonusUsed = Math.max(0, parseInt(req.body.bonus_used || 0) || 0);
+  const deliveryType = req.body.delivery_type === 'pickup' ? 'pickup' : 'delivery';
 
   const allowed = ['cash', 'click', 'payme'];
   if (!allowed.includes(payment)) return res.status(400).json({ error: 'Invalid payment method' });
+
+  // Yetkazib berish radiusi tekshiruvi (faqat delivery uchun)
+  if (deliveryType === 'delivery') {
+    if (typeof lat === 'number' && typeof lng === 'number') {
+      const distance = haversineKm(RESTAURANT_LAT, RESTAURANT_LNG, lat, lng);
+      if (distance > DELIVERY_RADIUS_KM) {
+        return res.status(400).json({ error: "Manzilingiz "+distance.toFixed(1)+" km uzoqlikda. Bizning yetkazib berish radiusimiz "+DELIVERY_RADIUS_KM+" km. O'zi olib ketishni tanlashingiz mumkin." });
+      }
+    }
+  }
 
   // Bonus ishlatish — validatsiya
   if (bonusUsed > 0) {
@@ -852,7 +896,79 @@ app.post('/api/orders', async (req, res) => {
     });
   }
 
-  res.json({ ok: true, order_id: r.lastInsertRowid });
+  res.json({
+    ok: true,
+    order_id: r.lastInsertRowid,
+    eta_text: estimatedDeliveryText(),
+    eta_window: estimatedDeliveryWindow()
+  });
+});
+
+// Mini app uchun konfiguratsiya (radius, restoran manzil, ETA)
+app.get('/api/config', (req, res) => {
+  res.json({
+    restaurant_lat: RESTAURANT_LAT,
+    restaurant_lng: RESTAURANT_LNG,
+    restaurant_address: RESTAURANT_ADDRESS,
+    delivery_radius_km: DELIVERY_RADIUS_KM,
+    eta_min_minutes: ETA_MIN_MINUTES,
+    eta_max_minutes: ETA_MAX_MINUTES,
+    bonus_percent: BONUS_PERCENT,
+    welcome_bonus: WELCOME_BONUS,
+    bonus_ttl_days: BONUS_TTL_DAYS,
+    max_bonus_use_percent: MAX_BONUS_USE_PERCENT
+  });
+});
+
+// Admin: foydalanuvchilarga ommaviy xabar yuborish
+// Fonda ishlaydi — Railway 60s edge timeout-iga tushib qolmaslik uchun.
+const broadcastJobs = new Map();
+app.post('/api/admin/broadcast', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  const message = (req.body && req.body.message || '').trim();
+  if (!message) return res.status(400).json({ error: "Xabar bo'sh" });
+
+  // Telegram identifiers — har qanday tanish manbalardan to'planadi
+  const ids = new Set();
+  try {
+    db.prepare("SELECT telegram_id FROM customers WHERE telegram_id IS NOT NULL").all().forEach(r => r.telegram_id && ids.add(String(r.telegram_id)));
+  } catch(e) {}
+  try {
+    db.prepare("SELECT telegram_id FROM users WHERE role IS NULL OR role='customer'").all().forEach(r => r.telegram_id && ids.add(String(r.telegram_id)));
+  } catch(e) {}
+  const recipients = Array.from(ids);
+
+  const jobId = String(Date.now()) + '_' + Math.random().toString(36).slice(2,8);
+  const job = { id: jobId, total: recipients.length, sent: 0, failed: 0, done: false, started: new Date().toISOString() };
+  broadcastJobs.set(jobId, job);
+
+  // Foydalanuvchiga darhol javob qaytaramiz
+  res.json({ ok: true, job_id: jobId, total: recipients.length, sent: 0, failed: 0, accepted: true });
+
+  // Fonda yuborish
+  (async () => {
+    for (const tid of recipients) {
+      try {
+        await bot.telegram.sendMessage(tid, message);
+        job.sent++;
+      } catch(e) {
+        job.failed++;
+      }
+      // Telegram rate-limit (~30 msg/sec): xavfsiz 40ms pauza
+      await new Promise(r => setTimeout(r, 40));
+    }
+    job.done = true;
+    job.finished = new Date().toISOString();
+    // 30 daqiqadan keyin map'dan tozalash
+    setTimeout(() => broadcastJobs.delete(jobId), 30*60*1000);
+  })().catch(e => { job.error = e.message; job.done = true; });
+});
+
+app.get('/api/admin/broadcast/:jobId', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  const job = broadcastJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+  res.json(job);
 });
 
 // Admin: iiko menyusini qo'lda sinxronlash

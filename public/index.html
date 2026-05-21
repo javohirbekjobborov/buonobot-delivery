@@ -126,6 +126,10 @@ textarea.inp{min-height:60px;resize:none}
     <h3>&#128205; Yetkazish manzili</h3>
     <input class="inp" id="f-addr" placeholder="Ko'cha, uy raqami..." type="text">
     <button class="loc-btn" id="loc-btn" onclick="getLocation()">&#128205; Joylashuvimni aniqlash (GPS)</button>
+    <div id="loc-info" style="margin-top:8px;font-size:12px;color:#64748b;line-height:1.5">
+      &#9201; <b>Taxminiy yetkazib berish: 30–60 daqiqa</b><br>
+      &#128666; Radius: <b id="cfg-radius">3 km</b> &middot; &#127828; <span id="cfg-addr">Yunusobod, Gullola 13</span>
+    </div>
   </div>
   <div class="form-box" id="bonus-box" style="display:none">
     <h3>&#127873; Bonus ishlatish</h3>
@@ -357,7 +361,8 @@ function renderProfile() {
         '<div>&#127828; <b>Buono Burger</b></div>'+
         '<div>&#128205; Yunusobod, Gullola 13</div>'+
         '<div>&#9201; 10:00 — 23:00</div>'+
-        '<div>&#128666; Yetkazib berish: 7 km radius</div>'+
+        '<div>&#128666; Yetkazib berish: '+(cfg.delivery_radius_km||3)+' km radius</div>'+
+        '<div>&#9201; Taxminiy: '+(cfg.eta_min_minutes||30)+'–'+(cfg.eta_max_minutes||60)+' daqiqa</div>'+
       '</div>';
   });
 }
@@ -459,6 +464,14 @@ function configureBonusBox() {
 }
 
 // Init
+let cfg = { delivery_radius_km: 3, restaurant_address: "Yunusobod, Gullola 13", eta_min_minutes: 30, eta_max_minutes: 60, restaurant_lat: 41.3588914, restaurant_lng: 69.3366373 };
+
+fetch('/api/config').then(r=>r.json()).then(d=>{
+  cfg = Object.assign(cfg, d);
+  const rad = document.getElementById('cfg-radius'); if (rad) rad.textContent = cfg.delivery_radius_km + ' km';
+  const ad = document.getElementById('cfg-addr'); if (ad) ad.textContent = cfg.restaurant_address;
+}).catch(()=>{});
+
 fetch('/api/menu').then(r=>r.json()).then(data=>{
   cats = data;
   prods = data.flatMap(c=>c.products||[]);
@@ -629,17 +642,26 @@ function selectPay(method, el) {
   info.classList.add('show');
 }
 
+function haversineKm(lat1,lng1,lat2,lng2){const R=6371,toRad=d=>d*Math.PI/180;const dLat=toRad(lat2-lat1),dLng=toRad(lng2-lng1);const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(a));}
+
 // GPS
 function getLocation() {
   if(!navigator.geolocation) return alert("GPS mavjud emas");
   const btn = document.getElementById('loc-btn');
-  btn.textContent = '&#128205; Aniqlanmoqda...';
+  btn.textContent = '📍 Aniqlanmoqda...';
   navigator.geolocation.getCurrentPosition(
     pos => {
-      userLat = pos.coords.latitude;
-      userLng = pos.coords.longitude;
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;
+      const dist = haversineKm(cfg.restaurant_lat, cfg.restaurant_lng, lat, lng);
+      if (dist > cfg.delivery_radius_km) {
+        btn.innerHTML = '&#128205; Joylashuvimni aniqlash (GPS)';
+        alert("Manzilingiz "+dist.toFixed(1)+" km uzoqlikda.\nBizning yetkazib berish radiusimiz "+cfg.delivery_radius_km+" km.\n\nO'zi olib ketishni tanlashingiz mumkin.");
+        return;
+      }
+      userLat = lat;
+      userLng = lng;
       btn.className = 'loc-btn got';
-      btn.innerHTML = '&#9989; Joylashuv aniqlandi!';
+      btn.innerHTML = '&#9989; Joylashuv aniqlandi! ('+dist.toFixed(1)+' km)';
     },
     () => { btn.innerHTML = '&#128205; Joylashuvimni aniqlash (GPS)'; }
   );
@@ -681,7 +703,8 @@ async function submitOrder() {
     if(data.ok) {
       cart = {}; updateUI();
       closePage('pg-checkout');
-      let msg = 'Kuryerimiz tez orada yetib boradi. &#128757;';
+      let msg = '&#9201; <b>Taxminiy yetkazib berish: '+(data.eta_text || '30–60 daqiqa')+'</b>';
+      msg += '<br><br>Kuryerimiz tez orada yetib boradi. &#128757;';
       if (bonusUsed > 0) msg += '<br><br>💸 '+bonusUsed.toLocaleString()+" so'm bonus ishlatildi.";
       document.getElementById('success-msg').innerHTML = msg;
       openPage('pg-success');
