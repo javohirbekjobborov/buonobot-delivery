@@ -1,5 +1,17 @@
 const Database = require('better-sqlite3');
-const db = new Database('./delivery.db');
+const fs = require('fs');
+const path = require('path');
+
+// Doimiy DB uchun env: DATABASE_PATH (masalan /app/data/delivery.db Railway Volume bilan)
+const DB_PATH = process.env.DATABASE_PATH || './delivery.db';
+// Agar parent katalog yo'q bo'lsa, yaratamiz
+try {
+  const dir = path.dirname(DB_PATH);
+  if (dir && dir !== '.' && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+} catch(e) { console.warn('DB dir create:', e.message); }
+
+console.log('[db] using SQLite at:', DB_PATH);
+const db = new Database(DB_PATH);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
