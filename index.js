@@ -1145,6 +1145,42 @@ app.get('/api/admin/couriers', (req, res) => {
   res.json(db.prepare("SELECT * FROM users WHERE role='courier'").all());
 });
 
+// Kategoriya boshqaruvi
+app.get('/api/admin/categories', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  res.json(db.prepare('SELECT id, name_uz, name_ru, emoji, sort_order, active, iiko_group_id FROM categories ORDER BY sort_order, id').all());
+});
+
+app.post('/api/admin/categories', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  const { name_uz, name_ru, emoji, sort_order, iiko_group_id } = req.body || {};
+  if (!name_uz) return res.status(400).json({ error: 'name_uz required' });
+  // Mavjudligini tekshirish (iiko_group_id orqali)
+  if (iiko_group_id) {
+    const existing = db.prepare('SELECT id FROM categories WHERE iiko_group_id=?').get(iiko_group_id);
+    if (existing) return res.json({ ok: true, id: existing.id, existed: true });
+  }
+  const maxOrder = (db.prepare('SELECT MAX(sort_order) as m FROM categories').get().m || 0) + 1;
+  const r = db.prepare('INSERT INTO categories (name_uz, name_ru, emoji, sort_order, active, iiko_group_id) VALUES (?, ?, ?, ?, 1, ?)')
+    .run(name_uz, name_ru || name_uz, emoji || '🍽', sort_order || maxOrder, iiko_group_id || null);
+  res.json({ ok: true, id: r.lastInsertRowid });
+});
+
+app.put('/api/admin/categories/:id', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  const { name_uz, name_ru, emoji, sort_order, active } = req.body || {};
+  const sets = [], vals = [];
+  if (name_uz !== undefined) { sets.push('name_uz=?'); vals.push(name_uz); }
+  if (name_ru !== undefined) { sets.push('name_ru=?'); vals.push(name_ru); }
+  if (emoji !== undefined) { sets.push('emoji=?'); vals.push(emoji); }
+  if (sort_order !== undefined) { sets.push('sort_order=?'); vals.push(sort_order); }
+  if (active !== undefined) { sets.push('active=?'); vals.push(active); }
+  if (!sets.length) return res.status(400).json({ error: 'no fields' });
+  vals.push(req.params.id);
+  db.prepare('UPDATE categories SET '+sets.join(',')+' WHERE id=?').run(...vals);
+  res.json({ ok: true });
+});
+
 app.get('/api/admin/products', (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
   res.json(db.prepare('SELECT p.*,c.name_uz as cat_name FROM products p JOIN categories c ON p.category_id=c.id ORDER BY c.sort_order,p.id').all());
