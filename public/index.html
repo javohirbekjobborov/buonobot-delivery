@@ -5,7 +5,16 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f8fafc;color:#1e293b;padding-bottom:80px}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f8fafc;color:#1e293b;padding-bottom:64px}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;display:grid;grid-template-columns:repeat(4,1fr);z-index:60;box-shadow:0 -2px 10px rgba(0,0,0,.04)}
+.nav-item{background:none;border:none;padding:8px 4px 10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:#94a3b8;font-family:inherit;position:relative}
+.nav-item .nav-icon{font-size:22px;line-height:1}
+.nav-item .nav-label{font-size:10px;font-weight:600}
+.nav-item.active{color:#e63946}
+.nav-item .nav-badge{position:absolute;top:4px;right:18px;background:#e63946;color:#fff;border-radius:10px;min-width:16px;height:16px;font-size:9px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 4px}
+.nav-item .nav-badge.show{display:inline-flex}
+.bottom-bar{position:fixed;left:12px;right:12px;bottom:72px;z-index:55;display:none}
+.bottom-bar.show{display:block}
 .hdr{background:linear-gradient(135deg,#e63946,#c1121f);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between}
 .hdr h1{font-size:18px;font-weight:800}
 .cart-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px}
@@ -32,6 +41,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f8fafc;
 /* CART PAGE */
 .page{display:none;position:fixed;inset:0;background:#f8fafc;overflow-y:auto;z-index:100}
 .page.show{display:block}
+.tab-page{display:none;position:fixed;left:0;right:0;top:0;bottom:64px;background:#f8fafc;overflow-y:auto;z-index:55}
+.tab-page.show{display:block}
 .page-hdr{background:linear-gradient(135deg,#e63946,#c1121f);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10}
 .back-btn{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0}
 .page-hdr h2{font-size:17px;font-weight:800}
@@ -79,10 +90,7 @@ textarea.inp{min-height:60px;resize:none}
 <div id="pg-main">
   <div class="hdr">
     <h1>&#127828; Buono Burger</h1>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button class="cart-btn" onclick="openCard()" title="Mening kartam" style="background:rgba(255,255,255,.2)">&#127915;</button>
-      <button class="cart-btn" onclick="openCart()">&#128722; <span id="cart-count">0</span></button>
-    </div>
+    <button class="cart-btn" onclick="openCart()">&#128722; <span id="cart-count">0</span></button>
   </div>
   <div class="cats" id="cats"></div>
   <div id="menu-body"></div>
@@ -178,16 +186,46 @@ textarea.inp{min-height:60px;resize:none}
   </div>
 </div>
 
-<!-- CARD PAGE -->
-<div class="page" id="pg-card">
-  <div class="page-hdr">
-    <button class="back-btn" onclick="closePage('pg-card')">&#8592;</button>
-    <h2>&#127915; Mening kartam</h2>
-  </div>
+<!-- CARD PAGE (tab) -->
+<div class="tab-page" id="pg-card">
+  <div class="page-hdr"><h2>&#127915; Mening kartam</h2></div>
   <div id="card-body" style="padding:16px">
     <div class="empty"><p>Yuklanmoqda...</p></div>
   </div>
 </div>
+
+<!-- ORDERS PAGE (tab) -->
+<div class="tab-page" id="pg-orders">
+  <div class="page-hdr"><h2>&#128203; Buyurtmalarim</h2></div>
+  <div id="orders-body" style="padding:16px">
+    <div class="empty"><div class="icon">&#128203;</div><p>Yuklanmoqda...</p></div>
+  </div>
+</div>
+
+<!-- PROFILE PAGE (tab) -->
+<div class="tab-page" id="pg-profile">
+  <div class="page-hdr"><h2>&#128100; Profil</h2></div>
+  <div id="profile-body" style="padding:16px">
+    <div class="empty"><div class="icon">&#128100;</div><p>Yuklanmoqda...</p></div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-item active" id="nav-menu" onclick="navTo('menu')">
+    <span class="nav-icon">&#127828;</span><span class="nav-label">Menyu</span>
+  </button>
+  <button class="nav-item" id="nav-card" onclick="navTo('card')">
+    <span class="nav-icon">&#127915;</span><span class="nav-label">Karta</span>
+  </button>
+  <button class="nav-item" id="nav-orders" onclick="navTo('orders')">
+    <span class="nav-icon">&#128203;</span><span class="nav-label">Buyurtmalar</span>
+    <span class="nav-badge" id="orders-badge">0</span>
+  </button>
+  <button class="nav-item" id="nav-profile" onclick="navTo('profile')">
+    <span class="nav-icon">&#128100;</span><span class="nav-label">Profil</span>
+  </button>
+</nav>
 
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -207,11 +245,121 @@ function loadCustomerProfile(cb) {
   }).catch(()=>{ customerProfile = {registered:false}; if(cb)cb(); });
 }
 
-function openCard() {
-  if (!UID) { alert('Telegram orqali kiring'); return; }
-  document.getElementById('pg-card').classList.add('show');
-  renderCard();
-  loadCustomerProfile(renderCard);
+function navTo(name) {
+  // Hide all tab pages
+  ['pg-card','pg-orders','pg-profile'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('show');
+  });
+  // Update nav active state
+  ['menu','card','orders','profile'].forEach(n=>{
+    const b = document.getElementById('nav-'+n);
+    if (b) b.classList.toggle('active', n===name);
+  });
+  if (name === 'menu') {
+    // Just show menu (default), nothing to do
+  } else if (name === 'card') {
+    document.getElementById('pg-card').classList.add('show');
+    if (!customerProfile) loadCustomerProfile(renderCard);
+    else renderCard();
+  } else if (name === 'orders') {
+    document.getElementById('pg-orders').classList.add('show');
+    renderOrders();
+  } else if (name === 'profile') {
+    document.getElementById('pg-profile').classList.add('show');
+    renderProfile();
+  }
+}
+
+function openCard() { navTo('card'); }
+
+const ST = {
+  new:        {label:'Yangi',         cls:'#f59e0b', bg:'#fef3c7'},
+  accepted:   {label:'Qabul',         cls:'#1e40af', bg:'#dbeafe'},
+  cooking:    {label:'Tayyorlanmoqda',cls:'#9d174d', bg:'#fce7f3'},
+  on_way:     {label:"Yo'lda",        cls:'#065f46', bg:'#d1fae5'},
+  delivered:  {label:'Yetkazildi',    cls:'#166534', bg:'#f0fdf4'},
+  cancelled:  {label:'Bekor',         cls:'#475569', bg:'#e2e8f0'}
+};
+
+function renderOrders() {
+  const body = document.getElementById('orders-body');
+  if (!UID) {
+    body.innerHTML = '<div class="empty"><div class="icon">&#128274;</div><p>Telegram orqali kiring</p></div>';
+    return;
+  }
+  body.innerHTML = '<div class="empty"><p>Yuklanmoqda...</p></div>';
+  fetch('/api/orders/my', {headers: H}).then(r=>r.json()).then(orders=>{
+    if (!orders.length) {
+      body.innerHTML = '<div class="empty"><div class="icon">&#128203;</div><p>Buyurtma yo\'q</p></div>';
+      updateOrdersBadge(0);
+      return;
+    }
+    const active = orders.filter(o => ['new','accepted','cooking','on_way'].indexOf(o.status)>=0).length;
+    updateOrdersBadge(active);
+    body.innerHTML = orders.map(o=>{
+      const s = ST[o.status] || {label:o.status,cls:'#94a3b8',bg:'#f1f5f9'};
+      const items = (o.items||[]).map(i=>i.name_uz+' ×'+i.qty).join(', ');
+      const date = (o.created_at||'').replace('T',' ').slice(0,16);
+      return '<div style="background:#fff;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+          '<div style="font-weight:800;font-size:14px">&#128230; Buyurtma #'+o.id+'</div>'+
+          '<span style="background:'+s.bg+';color:'+s.cls+';padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700">'+s.label+'</span>'+
+        '</div>'+
+        '<div style="font-size:12px;color:#64748b;margin-bottom:6px">'+items+'</div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">'+
+          '<span style="color:#64748b">'+date+'</span>'+
+          '<span style="font-weight:800;color:#e63946">'+(o.total||0).toLocaleString()+" so'm</span>"+
+        '</div>'+
+        (o.bonus_used?'<div style="font-size:11px;color:#16a34a;margin-top:4px">&#127873; '+o.bonus_used.toLocaleString()+" so'm bonus ishlatildi</div>":'')+
+      '</div>';
+    }).join('');
+  }).catch(()=>{
+    body.innerHTML = '<div class="empty"><div class="icon">&#9888;</div><p>Xatolik</p></div>';
+  });
+}
+
+function updateOrdersBadge(n) {
+  const b = document.getElementById('orders-badge');
+  if (!b) return;
+  if (n > 0) { b.textContent = n; b.classList.add('show'); }
+  else b.classList.remove('show');
+}
+
+function renderProfile() {
+  const body = document.getElementById('profile-body');
+  if (!UID) {
+    body.innerHTML = '<div class="empty"><div class="icon">&#128274;</div><p>Telegram orqali kiring</p></div>';
+    return;
+  }
+  loadCustomerProfile(function(){
+    const c = customerProfile;
+    if (!c || !c.registered) {
+      body.innerHTML = '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:14px;padding:16px;text-align:center"><h3 style="color:#92400e;margin-bottom:8px">Ro\'yxatdan o\'tmagansiz</h3><p style="font-size:13px;color:#92400e">Botga /start yozing va telefon raqamingizni yuboring.</p></div>';
+      return;
+    }
+    const cardFmt = (c.card_number||'').replace(/(\d{4})(\d{3})(\d{3})/, '$1 $2 $3');
+    body.innerHTML =
+      '<div style="background:#fff;border-radius:14px;padding:18px;text-align:center;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)">'+
+        '<div style="width:80px;height:80px;background:linear-gradient(135deg,#e63946,#c1121f);border-radius:50%;color:#fff;font-size:36px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">'+(c.first_name||'?')[0].toUpperCase()+'</div>'+
+        '<div style="font-size:18px;font-weight:800">'+(c.first_name||'-')+'</div>'+
+        '<div style="font-size:13px;color:#64748b;margin-top:4px">&#128222; '+(c.phone||'-')+'</div>'+
+      '</div>'+
+      '<div style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)">'+
+        '<div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:6px">Karta raqami</div>'+
+        '<div style="font-size:16px;font-weight:800;letter-spacing:1.5px">'+cardFmt+'</div>'+
+      '</div>'+
+      '<div style="background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);display:grid;grid-template-columns:1fr 1fr;gap:12px;text-align:center">'+
+        '<div><div style="font-size:11px;color:#64748b;margin-bottom:4px">Joriy balans</div><div style="font-size:18px;font-weight:800;color:#e63946">'+(c.bonus_balance||0).toLocaleString()+"</div><div style=\"font-size:10px;color:#94a3b8\">so'm</div></div>"+
+        '<div><div style="font-size:11px;color:#64748b;margin-bottom:4px">Jami yig\'ildi</div><div style="font-size:18px;font-weight:800;color:#16a34a">'+(c.total_earned||0).toLocaleString()+"</div><div style=\"font-size:10px;color:#94a3b8\">so'm</div></div>"+
+      '</div>'+
+      '<div style="background:#fff;border-radius:14px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);font-size:13px;color:#475569;line-height:1.7">'+
+        '<div>&#127828; <b>Buono Burger</b></div>'+
+        '<div>&#128205; Yunusobod, Gullola 13</div>'+
+        '<div>&#9201; 10:00 — 23:00</div>'+
+        '<div>&#128666; Yetkazib berish: 7 km radius</div>'+
+      '</div>';
+  });
 }
 
 function renderCard() {
@@ -411,6 +559,9 @@ function updateUI() {
   document.getElementById('cart-total-btn').textContent = tot.toLocaleString()+" so'm";
   const btn = document.getElementById('goto-cart');
   if(btn) btn.disabled = cnt===0;
+  // Bottom-bar (floating Savatcha) — faqat mahsulot bo'lsa ko'rinadi
+  const bar = document.querySelector('#pg-main .bottom-bar');
+  if (bar) bar.classList.toggle('show', cnt > 0);
 }
 
 // Pages
