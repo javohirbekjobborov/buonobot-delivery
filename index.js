@@ -1188,18 +1188,29 @@ app.get('/api/admin/products', (req, res) => {
 
 app.post('/api/admin/products', (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
-  const { name_uz, name_ru, desc_uz, desc_ru, price, category_id, image } = req.body;
-  const r = db.prepare('INSERT INTO products (category_id,name_uz,name_ru,desc_uz,desc_ru,price,image,active) VALUES (?,?,?,?,?,?,?,1)')
-    .run(category_id||1, name_uz, name_ru||'', desc_uz||'', desc_ru||'', price, image||'');
+  const { name_uz, name_ru, desc_uz, desc_ru, price, category_id, image, iiko_id, iiko_group_id } = req.body;
+  // Agar iiko_id bo'lsa, mavjudligini tekshirib upsert qilamiz
+  if (iiko_id) {
+    const existing = db.prepare('SELECT id FROM products WHERE iiko_id=?').get(iiko_id);
+    if (existing) {
+      db.prepare('UPDATE products SET name_uz=?,name_ru=?,desc_uz=?,desc_ru=?,price=?,category_id=?,image=COALESCE(NULLIF(?, ""), image),iiko_group_id=?,active=1 WHERE id=?')
+        .run(name_uz, name_ru||'', desc_uz||'', desc_ru||'', price, category_id||1, image||'', iiko_group_id||null, existing.id);
+      return res.json({ ok: true, id: existing.id, updated: true });
+    }
+  }
+  const r = db.prepare('INSERT INTO products (category_id,name_uz,name_ru,desc_uz,desc_ru,price,image,iiko_id,iiko_group_id,active) VALUES (?,?,?,?,?,?,?,?,?,1)')
+    .run(category_id||1, name_uz, name_ru||'', desc_uz||'', desc_ru||'', price, image||'', iiko_id||null, iiko_group_id||null);
   res.json({ ok: true, id: r.lastInsertRowid });
 });
 
 app.put('/api/admin/products/:id', (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
-  const { name_uz, name_ru, desc_uz, desc_ru, price, category_id, image, active } = req.body;
+  const { name_uz, name_ru, desc_uz, desc_ru, price, category_id, image, iiko_id, iiko_group_id, active } = req.body;
   if (name_uz !== undefined) {
-    db.prepare('UPDATE products SET name_uz=?,name_ru=?,desc_uz=?,desc_ru=?,price=?,category_id=?,image=?,active=? WHERE id=?')
-      .run(name_uz, name_ru||'', desc_uz||'', desc_ru||'', price, category_id||1, image||'', active!==undefined?active:1, req.params.id);
+    db.prepare('UPDATE products SET name_uz=?,name_ru=?,desc_uz=?,desc_ru=?,price=?,category_id=?,image=?,iiko_id=COALESCE(?,iiko_id),iiko_group_id=COALESCE(?,iiko_group_id),active=? WHERE id=?')
+      .run(name_uz, name_ru||'', desc_uz||'', desc_ru||'', price, category_id||1, image||'', iiko_id||null, iiko_group_id||null, active!==undefined?active:1, req.params.id);
+  } else if (iiko_id !== undefined) {
+    db.prepare('UPDATE products SET iiko_id=? WHERE id=?').run(iiko_id, req.params.id);
   } else {
     db.prepare('UPDATE products SET active=? WHERE id=?').run(active, req.params.id);
   }
