@@ -116,16 +116,26 @@ async function createDelivery(payload) {
   return call('/api/1/deliveries/create', body);
 }
 
-// CRM bo'lganda — mijoz sinxronizatsiyasi
+// CRM — mijoz yaratish / yangilash. customer/create_or_update karta qabul qilmaydi,
+// kartani alohida customer/card/add orqali qo'shamiz.
 async function customerCreateOrUpdate(customer) {
   if (!isConfigured() || !CRM_ENABLED) return null;
   return call('/api/1/loyalty/iiko/customer/create_or_update', {
     organizationId: ORG_ID,
     phone: customer.phone,
-    name: customer.first_name || '',
+    name: customer.first_name || customer.name || '',
     middleName: '',
-    surName: customer.last_name || '',
-    cardNumbers: customer.card_number ? [{ number: String(customer.card_number) }] : []
+    surName: customer.last_name || ''
+  });
+}
+
+async function customerCardAdd(customerId, cardNumber) {
+  if (!isConfigured() || !CRM_ENABLED) return null;
+  return call('/api/1/loyalty/iiko/customer/card/add', {
+    organizationId: ORG_ID,
+    customerId,
+    cardTrack: String(cardNumber),
+    cardNumber: String(cardNumber)
   });
 }
 
@@ -138,15 +148,34 @@ async function customerInfo(phone) {
   });
 }
 
-async function customerRefillWallet(customerId, walletId, sum, comment) {
+// Wallet refill (topup) — bonus qo'shish
+async function customerWalletTopup(customerId, walletId, sum, comment) {
   if (!isConfigured() || !CRM_ENABLED) return null;
-  return call('/api/1/loyalty/iiko/customer/wallet/refill', {
+  return call('/api/1/loyalty/iiko/customer/wallet/topup', {
     organizationId: ORG_ID,
     customerId,
     walletId,
     sum,
     comment: comment || 'Auto cashback'
   });
+}
+
+// Wallet chargeoff (withdraw) — bonus olib qo'yish
+async function customerWalletChargeoff(customerId, walletId, sum, comment) {
+  if (!isConfigured() || !CRM_ENABLED) return null;
+  return call('/api/1/loyalty/iiko/customer/wallet/chargeoff', {
+    organizationId: ORG_ID,
+    customerId,
+    walletId,
+    sum,
+    comment: comment || 'Bonus spent'
+  });
+}
+
+// Loyalty dasturlari (wallet ID-larini topish uchun)
+async function getLoyaltyPrograms() {
+  if (!isConfigured() || !CRM_ENABLED) return null;
+  return call('/api/1/loyalty/iiko/program', { organizationId: ORG_ID });
 }
 
 module.exports = {
@@ -161,6 +190,9 @@ module.exports = {
   getPaymentTypes,
   createDelivery,
   customerCreateOrUpdate,
+  customerCardAdd,
   customerInfo,
-  customerRefillWallet
+  customerWalletTopup,
+  customerWalletChargeoff,
+  getLoyaltyPrograms
 };

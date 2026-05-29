@@ -123,12 +123,37 @@ function registerCustomer(telegramId, firstName, lastName, username, phone) {
         const r = await iiko.customerCreateOrUpdate(customer);
         if (r && r.id) {
           db.prepare('UPDATE customers SET iiko_customer_id=? WHERE telegram_id=?').run(r.id, customer.telegram_id);
+          // Karta raqamini alohida endpoint orqali qo'shamiz
+          if (customer.card_number) {
+            try { await iiko.customerCardAdd(r.id, customer.card_number); }
+            catch(e) { console.warn('[iiko] card add failed:', e.message); }
+          }
+          console.log('[iiko] customer synced:', customer.telegram_id, '→', r.id);
         }
       } catch(e) { console.warn('[iiko] customer sync failed:', e.message); }
     });
   }
 
   return { customer, isNew: true };
+}
+
+// Mavjud customer-ni iiko-ga sinxronlash (admin endpoint orqali chaqiriladi)
+async function syncCustomerToIiko(telegramId) {
+  if (!iiko.isConfigured() || !iiko.crmEnabled()) return { ok: false, reason: 'crm_disabled' };
+  const customer = getCustomer(telegramId);
+  if (!customer) return { ok: false, reason: 'not_found' };
+  if (!customer.phone) return { ok: false, reason: 'no_phone' };
+  try {
+    const r = await iiko.customerCreateOrUpdate(customer);
+    if (!r || !r.id) return { ok: false, reason: 'no_iiko_id', raw: r };
+    db.prepare('UPDATE customers SET iiko_customer_id=? WHERE telegram_id=?').run(r.id, customer.telegram_id);
+    if (customer.card_number) {
+      try { await iiko.customerCardAdd(r.id, customer.card_number); } catch(e) {}
+    }
+    return { ok: true, iiko_id: r.id };
+  } catch(e) {
+    return { ok: false, reason: 'error', error: e.message };
+  }
 }
 
 function creditBonus(telegramId, amount, reason, orderId) {
@@ -969,6 +994,30 @@ app.get('/api/admin/broadcast/:jobId', (req, res) => {
   const job = broadcastJobs.get(req.params.jobId);
   if (!job) return res.status(404).json({ error: 'Job not found' });
   res.json(job);
+});
+
+// Admin: Mavjud mijozlarni iiko-ga ommaviy sinxronlash
+app.post('/api/admin/iiko/sync-customers', async (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  if (!iiko.isConfigured() || !iiko.crmEnabled()) {
+    return res.status(400).json({ error: 'iiko CRM disabled' });
+  }
+  const customers = db.prepare("SELECT telegram_id, phone, card_number, iiko_customer_id FROM customers WHERE phone IS NOT NULL AND phone != ''").all();
+  const toSync = customers.filter(c => !c.iiko_customer_id);
+  res.json({ ok: true, total: customers.length, to_sync: toSync.length, accepted: true });
+
+  // Fonda sinxronlash
+  (async () => {
+    let ok = 0, fail = 0;
+    for (const c of toSync) {
+      try {
+        const r = await syncCustomerToIiko(c.telegram_id);
+        if (r.ok) ok++; else fail++;
+      } catch(e) { fail++; }
+      await new Promise(r => setTimeout(r, 200));
+    }
+    console.log('[iiko] bulk customer sync done:', { ok, fail, total: toSync.length });
+  })().catch(e => console.error('[iiko] bulk sync error:', e.message));
 });
 
 // Admin: iiko menyusini qo'lda sinxronlash
