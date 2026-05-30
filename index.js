@@ -396,26 +396,43 @@ async function showCustomerHome(ctx, customer) {
   });
 }
 
-// Telefon raqami olinganda — ro'yxatdan o'tkazamiz
+// Ro'yxatdan o'tish bosqichlari (telefon → ism → familiya)
+const pendingRegistration = new Map();
+const REG = { ASK_FIRST_NAME: 'first_name', ASK_LAST_NAME: 'last_name' };
+
+function setReg(uid, patch) {
+  const cur = pendingRegistration.get(uid) || {};
+  pendingRegistration.set(uid, Object.assign(cur, patch));
+}
+function clearReg(uid) { pendingRegistration.delete(uid); }
+function getReg(uid) { return pendingRegistration.get(uid); }
+
+// 1-bosqich: Telefon raqami olinganda — ismni so'raymiz
 bot.on('contact', async ctx => {
   try {
     const id = String(ctx.from.id);
     const contact = ctx.message.contact;
-    // Faqat o'z kontaktini yuborganida qabul qilamiz
     if (String(contact.user_id) !== id) {
       return ctx.reply("❌ Iltimos o'z telefon raqamingizni yuboring.");
     }
     const phone = contact.phone_number;
-    const { customer, isNew } = registerCustomer(id, ctx.from.first_name, ctx.from.last_name, ctx.from.username, phone);
 
-    // Reply keyboardni tozalash
-    await ctx.reply(
-      isNew
-        ? '✅ Ro\'yxatdan o\'tdingiz!\n\n🎫 Sizning karta raqamingiz: <code>'+customer.card_number+'</code>\n🎁 Sovg\'a bonus: <b>'+WELCOME_BONUS.toLocaleString()+" so'm</b>\n📅 Bonus muddati: "+BONUS_TTL_DAYS+' kun\n\nKartani "Mening kartam" tugmasi orqali ko\'rishingiz mumkin.'
-        : '✅ Telefon raqamingiz yangilandi.\n\n🎫 Karta: <code>'+customer.card_number+'</code>',
-      { parse_mode: 'HTML', reply_markup: { remove_keyboard: true } }
-    );
-    return showCustomerHome(ctx, getCustomer(id));
+    // Mavjud bo'lsa — to'g'ridan-to'g'ri uy sahifasi
+    const existing = getCustomer(id);
+    if (existing) {
+      if (phone && phone !== existing.phone) {
+        db.prepare('UPDATE customers SET phone=? WHERE telegram_id=?').run(phone, id);
+      }
+      await ctx.reply('✅ Siz allaqachon ro\'yxatdan o\'tgansiz.', { reply_markup: { remove_keyboard: true } });
+      return showCustomerHome(ctx, getCustomer(id));
+    }
+
+    // Pending registration boshlanmoqda — telefonni saqlab, ismni so'raymiz
+    setReg(id, { step: REG.ASK_FIRST_NAME, phone, username: ctx.from.username || '' });
+    await ctx.reply("✅ Telefon raqam qabul qilindi.\n\n👤 Endi <b>ism</b>ingizni yozing:", {
+      parse_mode: 'HTML',
+      reply_markup: { remove_keyboard: true }
+    });
   } catch(e) { console.error('contact error:', e.message); }
 });
 
@@ -588,9 +605,48 @@ bot.action(/^fb_or_(\d+)_(rating|sugg|comp)$/, async ctx => {
 
 bot.on('text', async ctx => {
   const uid = String(ctx.from.id);
+  const txt = (ctx.message.text || '').trim();
+
+  // Ro'yxatdan o'tish bosqichlari — telefondan keyin ism va familiya
+  const reg = getReg(uid);
+  if (reg && reg.step) {
+    // /komandalarni qabul qilmaymiz registratsiya paytida
+    if (txt.startsWith('/')) {
+      return ctx.reply("Iltimos ro'yxatdan o'tishni yakunlang yoki /start bilan qaytadan boshlang.");
+    }
+    if (reg.step === REG.ASK_FIRST_NAME) {
+      if (txt.length < 2 || txt.length > 40) {
+        return ctx.reply("❌ Iltimos to'g'ri ism kiriting (2–40 ta harf).");
+      }
+      setReg(uid, { step: REG.ASK_LAST_NAME, first_name: txt });
+      return ctx.reply("✅ Ism qabul qilindi.\n\n👤 Endi <b>familiya</b>ngizni yozing:", { parse_mode: 'HTML' });
+    }
+    if (reg.step === REG.ASK_LAST_NAME) {
+      if (txt.length < 2 || txt.length > 40) {
+        return ctx.reply("❌ Iltimos to'g'ri familiya kiriting (2–40 ta harf). Familiyangiz bo'lmasa nuqta (.) qo'ying.");
+      }
+      // To'liq ma'lumot bilan ro'yxatdan o'tkazamiz
+      const state = reg;
+      clearReg(uid);
+      const { customer, isNew } = registerCustomer(uid, state.first_name, txt, state.username || ctx.from.username || '', state.phone);
+      await ctx.reply(
+        '✅ <b>Ro\'yxatdan muvaffaqiyatli o\'tdingiz!</b>\n\n'+
+          '👤 Ism: '+state.first_name+' '+txt+'\n'+
+          '📞 Telefon: '+state.phone+'\n'+
+          '🎫 Karta raqami: <code>'+customer.card_number+'</code>\n'+
+          '🎁 Sovg\'a bonus: <b>'+WELCOME_BONUS.toLocaleString()+" so'm</b>\n"+
+          '📅 Bonus muddati: '+BONUS_TTL_DAYS+' kun\n\n'+
+          'Ma\'lumotlaringiz iiko mijozlar bazasiga saqlandi.',
+        { parse_mode: 'HTML' }
+      );
+      return showCustomerHome(ctx, getCustomer(uid));
+    }
+  }
+
+  // Feedback flow (mavjud)
   const state = getFb(uid);
   if (!state || !state.awaitingText) return;
-  await finalizeFeedback(ctx, state, ctx.message.text, '');
+  await finalizeFeedback(ctx, state, txt, '');
   clearFb(uid);
   await ctx.reply("✅ Izohingiz biz uchun qadrli va rivojlanishimiz uchun katta qadam! Rahmat! 😊", restartKb());
 });
