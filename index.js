@@ -9,7 +9,7 @@ const iiko = require('./iiko');
 // Bonus tizimi konfiguratsiyasi
 const BONUS_PERCENT = parseFloat(process.env.BONUS_PERCENT || '3');
 const WELCOME_BONUS = parseInt(process.env.WELCOME_BONUS || '5000');
-const BONUS_TTL_DAYS = parseInt(process.env.BONUS_TTL_DAYS || '15');
+const BONUS_TTL_DAYS = parseInt(process.env.BONUS_TTL_DAYS || '30');
 const MAX_BONUS_USE_PERCENT = parseInt(process.env.MAX_BONUS_USE_PERCENT || '50');
 
 // Restoran joylashuvi + yetkazib berish radiusi
