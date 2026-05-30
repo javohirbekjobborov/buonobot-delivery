@@ -375,7 +375,7 @@ function renderCard() {
   }
   const c = customerProfile;
   const ttl = c.config && c.config.ttl_days || 15;
-  const pct = c.config && c.config.bonus_percent || 3;
+  const pct = c.config && c.config.bonus_percent || 5;
   const txItems = (c.transactions || []).slice(0, 10).map(function(t) {
     const sign = t.kind === 'credit' ? '+' : '-';
     const color = t.kind === 'credit' ? '#16a34a' : (t.kind === 'expire' ? '#94a3b8' : '#e63946');
