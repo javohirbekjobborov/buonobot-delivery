@@ -703,6 +703,20 @@ async function submitOrder() {
     if(data.ok) {
       cart = {}; updateUI();
       closePage('pg-checkout');
+      // Payme bilan to'lov — checkout sahifasiga yo'naltiramiz
+      if (data.payme_url) {
+        let msg = "&#128179; <b>To'lov sahifasiga o'tilmoqda...</b>";
+        msg += "<br><br>Agar avtomatik ochilmasa, <a href='"+data.payme_url+"' target='_blank' style='color:#e63946;font-weight:700'>shu yerni bosing</a>.";
+        document.getElementById('success-msg').innerHTML = msg;
+        openPage('pg-success');
+        loadCustomerProfile();
+        if (window.Telegram && Telegram.WebApp && Telegram.WebApp.openLink) {
+          Telegram.WebApp.openLink(data.payme_url);
+        } else {
+          window.location.href = data.payme_url;
+        }
+        return;
+      }
       let msg = '&#9201; <b>Taxminiy yetkazib berish: '+(data.eta_text || '30–60 daqiqa')+'</b>';
       msg += '<br><br>Kuryerimiz tez orada yetib boradi. &#128757;';
       if (bonusUsed > 0) msg += '<br><br>💸 '+bonusUsed.toLocaleString()+" so'm bonus ishlatildi.";

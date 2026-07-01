@@ -89,6 +89,19 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_bonus_tx_customer ON bonus_transactions(customer_telegram_id, kind, remaining, expires_at);
+  CREATE TABLE IF NOT EXISTS payme_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paycom_id TEXT UNIQUE NOT NULL,
+    order_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    state INTEGER NOT NULL DEFAULT 1,
+    create_time INTEGER NOT NULL DEFAULT 0,
+    perform_time INTEGER NOT NULL DEFAULT 0,
+    cancel_time INTEGER NOT NULL DEFAULT 0,
+    reason INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_payme_order ON payme_transactions(order_id);
 `);
 
 try { db.exec("ALTER TABLE orders ADD COLUMN bonus_used INTEGER DEFAULT 0"); } catch(e) {}
@@ -104,6 +117,9 @@ try { db.exec("CREATE INDEX IF NOT EXISTS idx_cats_iiko ON categories(iiko_group
 try { db.exec("ALTER TABLE orders ADD COLUMN feedback_sent INTEGER DEFAULT 0"); } catch(e) {}
 
 try { db.exec("ALTER TABLE orders ADD COLUMN delivery_type TEXT DEFAULT 'delivery'"); } catch(e) {}
+
+try { db.exec("ALTER TABLE customers ADD COLUMN age_range TEXT"); } catch(e) {}
+try { db.exec("ALTER TABLE customers ADD COLUMN gender TEXT"); } catch(e) {}
 
 const oldDefault = ['Burgerlar','Pizzalar','Salatlar','Ichimliklar'];
 const existingCats = db.prepare('SELECT name_uz FROM categories ORDER BY id').all().map(c=>c.name_uz);

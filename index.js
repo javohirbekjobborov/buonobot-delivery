@@ -5,6 +5,7 @@ const path = require('path');
 const QRCode = require('qrcode');
 const db = require('./db');
 const iiko = require('./iiko');
+const payme = require('./payme');
 
 // Bonus tizimi konfiguratsiyasi
 const BONUS_PERCENT = parseFloat(process.env.BONUS_PERCENT || '5');
@@ -97,18 +98,22 @@ function getCustomerByCard(cardNumber) {
   return db.prepare('SELECT * FROM customers WHERE card_number=?').get(String(cardNumber));
 }
 
-function registerCustomer(telegramId, firstName, lastName, username, phone) {
+function registerCustomer(telegramId, firstName, lastName, username, phone, ageRange, gender) {
   const existing = getCustomer(telegramId);
   if (existing) {
-    // Telefon yangilash
-    if (phone && phone !== existing.phone) {
-      db.prepare('UPDATE customers SET phone=? WHERE telegram_id=?').run(phone, String(telegramId));
+    const sets = [], vals = [];
+    if (phone && phone !== existing.phone) { sets.push('phone=?'); vals.push(phone); }
+    if (ageRange && ageRange !== existing.age_range) { sets.push('age_range=?'); vals.push(ageRange); }
+    if (gender && gender !== existing.gender) { sets.push('gender=?'); vals.push(gender); }
+    if (sets.length) {
+      vals.push(String(telegramId));
+      db.prepare('UPDATE customers SET '+sets.join(',')+' WHERE telegram_id=?').run(...vals);
     }
     return { customer: getCustomer(telegramId), isNew: false };
   }
   const cardNumber = generateCardNumber();
-  db.prepare('INSERT INTO customers (telegram_id, card_number, phone, first_name, last_name, username) VALUES (?,?,?,?,?,?)')
-    .run(String(telegramId), cardNumber, phone||'', firstName||'', lastName||'', username||'');
+  db.prepare('INSERT INTO customers (telegram_id, card_number, phone, first_name, last_name, username, age_range, gender) VALUES (?,?,?,?,?,?,?,?)')
+    .run(String(telegramId), cardNumber, phone||'', firstName||'', lastName||'', username||'', ageRange||null, gender||null);
 
   // Welcome bonus
   if (WELCOME_BONUS > 0) {
@@ -396,9 +401,22 @@ async function showCustomerHome(ctx, customer) {
   });
 }
 
-// Ro'yxatdan o'tish bosqichlari (telefon → ism → familiya)
+// Ro'yxatdan o'tish bosqichlari (telefon → ism → familiya → yosh → jins)
 const pendingRegistration = new Map();
-const REG = { ASK_FIRST_NAME: 'first_name', ASK_LAST_NAME: 'last_name' };
+const REG = { ASK_FIRST_NAME: 'first_name', ASK_LAST_NAME: 'last_name', ASK_AGE: 'age', ASK_GENDER: 'gender' };
+const AGE_RANGES = ['18-25', '25-35', '35-45', '50+'];
+
+function ageKb() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('18–25', 'reg_age_18-25'), Markup.button.callback('25–35', 'reg_age_25-35')],
+    [Markup.button.callback('35–45', 'reg_age_35-45'), Markup.button.callback('50+',   'reg_age_50+')]
+  ]);
+}
+function genderKb() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('👨 Erkak', 'reg_gender_male'), Markup.button.callback('👩 Ayol', 'reg_gender_female')]
+  ]);
+}
 
 function setReg(uid, patch) {
   const cur = pendingRegistration.get(uid) || {};
@@ -434,6 +452,59 @@ bot.on('contact', async ctx => {
       reply_markup: { remove_keyboard: true }
     });
   } catch(e) { console.error('contact error:', e.message); }
+});
+
+// Ro'yxatdan o'tish: yosh oralig'ini tanlash
+bot.action(/^reg_age_(18-25|25-35|35-45|50\+)$/, async ctx => {
+  await ctx.answerCbQuery();
+  const uid = String(ctx.from.id);
+  const reg = getReg(uid);
+  if (!reg || reg.step !== REG.ASK_AGE) {
+    return ctx.reply("ℹ️ Iltimos /start bilan ro'yxatdan o'tishni boshlang.");
+  }
+  const ageRange = ctx.match[1];
+  if (!AGE_RANGES.includes(ageRange)) return;
+  setReg(uid, { step: REG.ASK_GENDER, age_range: ageRange });
+  await safeEdit(ctx, "✅ Yosh oralig'i qabul qilindi: <b>"+ageRange+"</b>\n\n👤 <b>Jinsingizni</b> tanlang:", {
+    parse_mode: 'HTML',
+    reply_markup: genderKb().reply_markup
+  });
+});
+
+// Ro'yxatdan o'tish: jinsni tanlash — yakuniy bosqich
+bot.action(/^reg_gender_(male|female)$/, async ctx => {
+  await ctx.answerCbQuery();
+  const uid = String(ctx.from.id);
+  const reg = getReg(uid);
+  if (!reg || reg.step !== REG.ASK_GENDER) {
+    return ctx.reply("ℹ️ Iltimos /start bilan ro'yxatdan o'tishni boshlang.");
+  }
+  const gender = ctx.match[1];
+  const state = reg;
+  clearReg(uid);
+  const { customer } = registerCustomer(
+    uid,
+    state.first_name,
+    state.last_name,
+    state.username || ctx.from.username || '',
+    state.phone,
+    state.age_range,
+    gender
+  );
+  const genderLabel = gender === 'male' ? '👨 Erkak' : '👩 Ayol';
+  await safeEdit(ctx,
+    "✅ <b>Ro'yxatdan muvaffaqiyatli o'tdingiz!</b>\n\n"+
+    '👤 Ism: '+state.first_name+' '+state.last_name+'\n'+
+    '📞 Telefon: '+state.phone+'\n'+
+    "🎂 Yosh oralig'i: "+state.age_range+'\n'+
+    '⚧ Jinsi: '+genderLabel+'\n'+
+    '🎫 Karta raqami: <code>'+customer.card_number+'</code>\n'+
+    "🎁 Sovg'a bonus: <b>"+WELCOME_BONUS.toLocaleString()+" so'm</b>\n"+
+    '📅 Bonus muddati: '+BONUS_TTL_DAYS+' kun\n\n'+
+    "Ma'lumotlaringiz iiko mijozlar bazasiga saqlandi.",
+    { parse_mode: 'HTML' }
+  );
+  return showCustomerHome(ctx, getCustomer(uid));
 });
 
 bot.command('karta', async ctx => {
@@ -625,21 +696,14 @@ bot.on('text', async ctx => {
       if (txt.length < 2 || txt.length > 40) {
         return ctx.reply("❌ Iltimos to'g'ri familiya kiriting (2–40 ta harf). Familiyangiz bo'lmasa nuqta (.) qo'ying.");
       }
-      // To'liq ma'lumot bilan ro'yxatdan o'tkazamiz
-      const state = reg;
-      clearReg(uid);
-      const { customer, isNew } = registerCustomer(uid, state.first_name, txt, state.username || ctx.from.username || '', state.phone);
-      await ctx.reply(
-        '✅ <b>Ro\'yxatdan muvaffaqiyatli o\'tdingiz!</b>\n\n'+
-          '👤 Ism: '+state.first_name+' '+txt+'\n'+
-          '📞 Telefon: '+state.phone+'\n'+
-          '🎫 Karta raqami: <code>'+customer.card_number+'</code>\n'+
-          '🎁 Sovg\'a bonus: <b>'+WELCOME_BONUS.toLocaleString()+" so'm</b>\n"+
-          '📅 Bonus muddati: '+BONUS_TTL_DAYS+' kun\n\n'+
-          'Ma\'lumotlaringiz iiko mijozlar bazasiga saqlandi.',
-        { parse_mode: 'HTML' }
-      );
-      return showCustomerHome(ctx, getCustomer(uid));
+      setReg(uid, { step: REG.ASK_AGE, last_name: txt });
+      return ctx.reply("✅ Familiya qabul qilindi.\n\n🎂 <b>Yosh oralig'ingizni</b> tanlang:", {
+        parse_mode: 'HTML',
+        reply_markup: ageKb().reply_markup
+      });
+    }
+    if (reg.step === REG.ASK_AGE || reg.step === REG.ASK_GENDER) {
+      return ctx.reply("ℹ️ Iltimos pastdagi tugmalardan birini tanlang.");
     }
   }
 
@@ -977,11 +1041,269 @@ app.post('/api/orders', async (req, res) => {
     });
   }
 
-  res.json({
+  const response = {
     ok: true,
     order_id: r.lastInsertRowid,
     eta_text: estimatedDeliveryText(),
     eta_window: estimatedDeliveryWindow()
+  };
+
+  // Payme bilan to'lov — checkout havolasini qaytaramiz
+  if (payment === 'payme' && payme.isConfigured()) {
+    const payable = Math.max(0, (order.total || 0) - (order.bonus_used || 0));
+    const amountTiyin = payable * 100;
+    const callback = APP_URL + '/payme/return?order_id=' + order.id;
+    response.payme_url = payme.checkoutUrl(order.id, amountTiyin, callback);
+    response.payment = 'payme';
+  }
+
+  res.json(response);
+});
+
+// ── PAYME MERCHANT API (JSON-RPC 2.0 webhook) ─────────────────────────────────
+// Payme serveri BU endpointga so'rov yuboradi. Merchant kabinetda Endpoint URL:
+//   <APP_URL>/payme
+
+// Buyurtma uchun Payme kutayotgan summa (tiyinda)
+function paymeExpectedAmount(order) {
+  const payable = Math.max(0, (order.total || 0) - (order.bonus_used || 0));
+  return payable * 100;
+}
+
+// account.order_id orqali buyurtmani topib, to'lov mumkinligini tekshiradi.
+// Muvaffaqiyat: {order}. Xato: {error: rpcError}.
+function paymeResolveOrder(params) {
+  const account = params && params.account;
+  const rawId = account && account[payme.ACCOUNT_FIELD];
+  if (!rawId || !/^\d+$/.test(String(rawId))) {
+    return { error: payme.rpcError(payme.ERR.INVALID_ACCOUNT,
+      payme.msg('Неверный номер заказа', "Buyurtma raqami noto'g'ri", 'Invalid order number'), payme.ACCOUNT_FIELD) };
+  }
+  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(String(rawId));
+  if (!order || order.payment !== 'payme') {
+    return { error: payme.rpcError(payme.ERR.INVALID_ACCOUNT,
+      payme.msg('Заказ не найден', 'Buyurtma topilmadi', 'Order not found'), payme.ACCOUNT_FIELD) };
+  }
+  return { order };
+}
+
+// CheckPerformTransaction mantiqi (bir necha metodda qayta ishlatiladi)
+function paymeCheckPerform(params) {
+  const r = paymeResolveOrder(params);
+  if (r.error) return { error: r.error };
+  const order = r.order;
+  // Buyurtma allaqachon to'langan yoki to'lov rad etilgan bo'lsa — yangi to'lov mumkin emas
+  if (order.payment_status === 'paid') {
+    return { error: payme.rpcError(payme.ERR.COULD_NOT_PERFORM,
+      payme.msg('Заказ уже оплачен', "Buyurtma allaqachon to'langan", 'Order already paid')) };
+  }
+  const expected = paymeExpectedAmount(order);
+  if (Number(params.amount) !== expected) {
+    return { error: payme.rpcError(payme.ERR.INVALID_AMOUNT,
+      payme.msg('Неверная сумма', "Summa noto'g'ri", 'Invalid amount')) };
+  }
+  return { order };
+}
+
+function paymeTxByPaycomId(paycomId) {
+  return db.prepare('SELECT * FROM payme_transactions WHERE paycom_id=?').get(String(paycomId));
+}
+
+// Buyurtmada boshqa faol (CREATED/COMPLETED) tranzaksiya bor-yo'qligini tekshiradi
+function paymeActiveTxForOrder(orderId, exceptPaycomId) {
+  return db.prepare(
+    "SELECT * FROM payme_transactions WHERE order_id=? AND state IN (?, ?) AND paycom_id != ?"
+  ).get(orderId, payme.STATE.CREATED, payme.STATE.COMPLETED, String(exceptPaycomId || ''));
+}
+
+const PAYME_METHODS = {
+  CheckPerformTransaction(params) {
+    const r = paymeCheckPerform(params);
+    if (r.error) return { error: r.error };
+    return { result: { allow: true } };
+  },
+
+  CreateTransaction(params) {
+    const existing = paymeTxByPaycomId(params.id);
+    if (existing) {
+      if (existing.state !== payme.STATE.CREATED) {
+        return { error: payme.rpcError(payme.ERR.COULD_NOT_PERFORM,
+          payme.msg('Невозможно выполнить операцию', "Amalni bajarib bo'lmaydi", 'Unable to perform operation')) };
+      }
+      // Muddati o'tgan bo'lsa — bekor qilamiz
+      if (Date.now() - existing.create_time > payme.TIMEOUT_MS) {
+        db.prepare('UPDATE payme_transactions SET state=?, cancel_time=?, reason=4 WHERE id=?')
+          .run(payme.STATE.CANCELLED, Date.now(), existing.id);
+        return { error: payme.rpcError(payme.ERR.COULD_NOT_PERFORM,
+          payme.msg('Время транзакции истекло', 'Tranzaksiya muddati tugadi', 'Transaction timed out')) };
+      }
+      return { result: { create_time: existing.create_time, transaction: String(existing.id), state: existing.state } };
+    }
+
+    const r = paymeCheckPerform(params);
+    if (r.error) return { error: r.error };
+    const order = r.order;
+    // Buyurtmada boshqa faol tranzaksiya bo'lsa — band
+    if (paymeActiveTxForOrder(order.id, params.id)) {
+      return { error: payme.rpcError(payme.ERR.INVALID_ACCOUNT,
+        payme.msg('Заказ обрабатывается другой транзакцией', "Buyurtma boshqa tranzaksiyada", 'Order is being processed'), payme.ACCOUNT_FIELD) };
+    }
+    const createTime = Number(params.time) || Date.now();
+    const ins = db.prepare('INSERT INTO payme_transactions (paycom_id, order_id, amount, state, create_time) VALUES (?,?,?,?,?)')
+      .run(String(params.id), order.id, Number(params.amount), payme.STATE.CREATED, createTime);
+    db.prepare("UPDATE orders SET payment_status='checking', updated_at=CURRENT_TIMESTAMP WHERE id=?").run(order.id);
+    return { result: { create_time: createTime, transaction: String(ins.lastInsertRowid), state: payme.STATE.CREATED } };
+  },
+
+  PerformTransaction(params) {
+    const tx = paymeTxByPaycomId(params.id);
+    if (!tx) {
+      return { error: payme.rpcError(payme.ERR.TRANSACTION_NOT_FOUND,
+        payme.msg('Транзакция не найдена', 'Tranzaksiya topilmadi', 'Transaction not found')) };
+    }
+    if (tx.state === payme.STATE.CREATED) {
+      // Muddat tekshiruvi
+      if (Date.now() - tx.create_time > payme.TIMEOUT_MS) {
+        db.prepare('UPDATE payme_transactions SET state=?, cancel_time=?, reason=4 WHERE id=?')
+          .run(payme.STATE.CANCELLED, Date.now(), tx.id);
+        return { error: payme.rpcError(payme.ERR.COULD_NOT_PERFORM,
+          payme.msg('Время транзакции истекло', 'Tranzaksiya muddati tugadi', 'Transaction timed out')) };
+      }
+      const performTime = Date.now();
+      db.prepare('UPDATE payme_transactions SET state=?, perform_time=? WHERE id=?')
+        .run(payme.STATE.COMPLETED, performTime, tx.id);
+      // Buyurtmani to'langan deb belgilaymiz + xabar
+      db.prepare("UPDATE orders SET payment_status='paid', updated_at=CURRENT_TIMESTAMP WHERE id=?").run(tx.order_id);
+      try {
+        const order = db.prepare('SELECT * FROM orders WHERE id=?').get(tx.order_id);
+        if (order) {
+          orderRecipients().forEach(id => {
+            bot.telegram.sendMessage(id, "✅ Buyurtma #"+order.id+" uchun Payme to'lovi qabul qilindi ("+(order.total).toLocaleString()+" so'm).").catch(()=>{});
+          });
+          if (order.user_id && order.user_id !== 'anon') {
+            bot.telegram.sendMessage(order.user_id, "✅ To'lovingiz qabul qilindi! Buyurtma #"+order.id+" tasdiqlandi.").catch(()=>{});
+          }
+        }
+      } catch(e) { console.warn('[payme] perform notify:', e.message); }
+      return { result: { transaction: String(tx.id), perform_time: performTime, state: payme.STATE.COMPLETED } };
+    }
+    if (tx.state === payme.STATE.COMPLETED) {
+      return { result: { transaction: String(tx.id), perform_time: tx.perform_time, state: payme.STATE.COMPLETED } };
+    }
+    return { error: payme.rpcError(payme.ERR.COULD_NOT_PERFORM,
+      payme.msg('Невозможно выполнить операцию', "Amalni bajarib bo'lmaydi", 'Unable to perform operation')) };
+  },
+
+  CancelTransaction(params) {
+    const tx = paymeTxByPaycomId(params.id);
+    if (!tx) {
+      return { error: payme.rpcError(payme.ERR.TRANSACTION_NOT_FOUND,
+        payme.msg('Транзакция не найдена', 'Tranzaksiya topilmadi', 'Transaction not found')) };
+    }
+    const reason = params.reason !== undefined ? params.reason : null;
+    if (tx.state === payme.STATE.CREATED) {
+      const cancelTime = Date.now();
+      db.prepare('UPDATE payme_transactions SET state=?, cancel_time=?, reason=? WHERE id=?')
+        .run(payme.STATE.CANCELLED, cancelTime, reason, tx.id);
+      db.prepare("UPDATE orders SET payment_status='rejected', updated_at=CURRENT_TIMESTAMP WHERE id=?").run(tx.order_id);
+      return { result: { transaction: String(tx.id), cancel_time: cancelTime, state: payme.STATE.CANCELLED } };
+    }
+    if (tx.state === payme.STATE.COMPLETED) {
+      const cancelTime = Date.now();
+      db.prepare('UPDATE payme_transactions SET state=?, cancel_time=?, reason=? WHERE id=?')
+        .run(payme.STATE.CANCELLED_AFTER_COMPLETE, cancelTime, reason, tx.id);
+      db.prepare("UPDATE orders SET payment_status='rejected', updated_at=CURRENT_TIMESTAMP WHERE id=?").run(tx.order_id);
+      try {
+        orderRecipients().forEach(id => {
+          bot.telegram.sendMessage(id, "↩️ Buyurtma #"+tx.order_id+" uchun Payme to'lovi BEKOR qilindi (refund).").catch(()=>{});
+        });
+      } catch(e) {}
+      return { result: { transaction: String(tx.id), cancel_time: cancelTime, state: payme.STATE.CANCELLED_AFTER_COMPLETE } };
+    }
+    // Allaqachon bekor qilingan — idempotent
+    return { result: { transaction: String(tx.id), cancel_time: tx.cancel_time, state: tx.state } };
+  },
+
+  CheckTransaction(params) {
+    const tx = paymeTxByPaycomId(params.id);
+    if (!tx) {
+      return { error: payme.rpcError(payme.ERR.TRANSACTION_NOT_FOUND,
+        payme.msg('Транзакция не найдена', 'Tranzaksiya topilmadi', 'Transaction not found')) };
+    }
+    return { result: {
+      create_time: tx.create_time,
+      perform_time: tx.perform_time || 0,
+      cancel_time: tx.cancel_time || 0,
+      transaction: String(tx.id),
+      state: tx.state,
+      reason: tx.reason !== null && tx.reason !== undefined ? tx.reason : null
+    } };
+  },
+
+  GetStatement(params) {
+    const from = Number(params.from) || 0;
+    const to = Number(params.to) || Date.now();
+    const rows = db.prepare('SELECT * FROM payme_transactions WHERE create_time>=? AND create_time<=? ORDER BY create_time ASC').all(from, to);
+    return { result: { transactions: rows.map(tx => ({
+      id: tx.paycom_id,
+      time: tx.create_time,
+      amount: tx.amount,
+      account: { [payme.ACCOUNT_FIELD]: String(tx.order_id) },
+      create_time: tx.create_time,
+      perform_time: tx.perform_time || 0,
+      cancel_time: tx.cancel_time || 0,
+      transaction: String(tx.id),
+      state: tx.state,
+      reason: tx.reason !== null && tx.reason !== undefined ? tx.reason : null
+    })) } };
+  }
+};
+
+app.post('/payme', (req, res) => {
+  const body = req.body || {};
+  const id = body.id !== undefined ? body.id : null;
+  const send = (payload) => res.status(200).json(Object.assign({ jsonrpc: '2.0', id }, payload));
+
+  // Auth tekshiruvi
+  if (!payme.checkAuth(req.headers['authorization'])) {
+    return send({ error: payme.rpcError(payme.ERR.INSUFFICIENT_PRIVILEGE,
+      payme.msg('Недостаточно привилегий', "Ruxsat yetarli emas", 'Insufficient privilege')) });
+  }
+
+  const method = body.method;
+  const handler = PAYME_METHODS[method];
+  if (!handler) {
+    return send({ error: payme.rpcError(payme.ERR.METHOD_NOT_FOUND,
+      payme.msg('Метод не найден', 'Metod topilmadi', 'Method not found')) });
+  }
+
+  try {
+    const out = handler(body.params || {});
+    return send(out);
+  } catch (e) {
+    console.error('[payme] handler error:', e.message);
+    return send({ error: payme.rpcError(payme.ERR.COULD_NOT_PERFORM,
+      payme.msg('Внутренняя ошибка', 'Ichki xatolik', 'Internal error')) });
+  }
+});
+
+// Payme checkout dan qaytish sahifasi (foydalanuvchi to'lovdan keyin bu yerga qaytadi)
+app.get('/payme/return', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Payme</title></head>'+
+    '<body style="font-family:sans-serif;text-align:center;padding:40px"><h2>✅ Rahmat!</h2>'+
+    "<p>To'lov jarayoni yakunlandi. Buyurtmangiz holatini Telegram botdan kuzatishingiz mumkin.</p>"+
+    '<script>if(window.Telegram&&Telegram.WebApp){Telegram.WebApp.close();}</script></body></html>');
+});
+
+// Admin: Payme konfiguratsiya holati
+app.get('/api/admin/payme/status', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  res.json({
+    configured: payme.isConfigured(),
+    endpoint_url: APP_URL + '/payme',
+    recent: db.prepare('SELECT paycom_id, order_id, amount, state, create_time, perform_time, cancel_time FROM payme_transactions ORDER BY id DESC LIMIT 20').all(),
+    config: payme.config
   });
 });
 
@@ -1338,8 +1660,20 @@ app.put('/api/courier/orders/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// JSON parse xatolari — Payme uchun JSON-RPC -32700 (HTTP 200)
+app.use((err, req, res, next) => {
+  if (err && err.type === 'entity.parse.failed') {
+    if (req.path === '/payme') {
+      return res.status(200).json({ jsonrpc: '2.0', id: null,
+        error: payme.rpcError(payme.ERR.PARSE_ERROR, payme.msg('Ошибка парсинга JSON', 'JSON tahlil xatosi', 'JSON parse error')) });
+    }
+    return res.status(400).json({ error: 'Invalid JSON' });
+  }
+  next(err);
+});
+
 app.listen(PORT, () => console.log('Server: ' + PORT));
-bot.launch();
+bot.launch().catch(e => console.error('[bot] launch failed:', e.message));
 
 // iiko menyusini avtomatik sinxronlash (ishga tushganda + har 4 soatda)
 if (iiko.isConfigured()) {
