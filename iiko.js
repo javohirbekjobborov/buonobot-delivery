@@ -120,13 +120,26 @@ async function createDelivery(payload) {
 // kartani alohida customer/card/add orqali qo'shamiz.
 async function customerCreateOrUpdate(customer) {
   if (!isConfigured() || !CRM_ENABLED) return null;
-  return call('/api/1/loyalty/iiko/customer/create_or_update', {
+  const body = {
     organizationId: ORG_ID,
     phone: customer.phone,
     name: customer.first_name || customer.name || '',
     middleName: '',
     surName: customer.last_name || ''
-  });
+  };
+  // Jins → sex (1 = Male, 2 = Female; iiko enum)
+  if (customer.gender === 'male') body.sex = 1;
+  else if (customer.gender === 'female') body.sex = 2;
+  // Yosh oralig'idan taxminiy tug'ilgan yil (median yoshda, 1-yanvar)
+  if (customer.age_range) {
+    const medians = { '18-25': 21, '25-35': 30, '35-45': 40, '50+': 55 };
+    const median = medians[customer.age_range];
+    if (median) {
+      const year = new Date().getFullYear() - median;
+      body.birthday = year + '-01-01T00:00:00';
+    }
+  }
+  return call('/api/1/loyalty/iiko/customer/create_or_update', body);
 }
 
 async function customerCardAdd(customerId, cardNumber) {
