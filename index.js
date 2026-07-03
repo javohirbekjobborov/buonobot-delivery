@@ -336,6 +336,8 @@ async function pushOrderToIiko(order, items) {
       items: mapped,
       comment: '🎫 Karta: '+(order.card_number||'-')+'\n'+(order.comment || ''),
       address: order.address || '',
+      lat: order.lat,
+      lng: order.lng,
       deliveryType: order.delivery_type === 'pickup' ? 'pickup' : 'delivery'
     });
     return { ok: true, orderId: r && r.orderInfo && r.orderInfo.id };
@@ -1027,6 +1029,8 @@ app.post('/api/orders', async (req, res) => {
           user_name: order.user_name,
           user_phone: order.user_phone,
           address: order.address,
+          lat: order.lat,
+          lng: order.lng,
           comment: order.comment,
           delivery_type: order.delivery_type,
           card_number: customer && customer.card_number
