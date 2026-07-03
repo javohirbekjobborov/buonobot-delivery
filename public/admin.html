@@ -76,6 +76,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;
     <button class="nb" id="nb-map" onclick="go('map')">&#128506; Xarita</button>
     <button class="nb" id="nb-menu" onclick="go('menu')">&#127828; Menyu</button>
     <button class="nb" id="nb-add" onclick="go('add')">&#10133; Qo'shish</button>
+    <button class="nb" id="nb-customers" onclick="go('customers')">&#128100; Mijozlar</button>
     <button class="nb" id="nb-broadcast" onclick="go('broadcast')">&#128227; Xabar yuborish</button>
   </nav>
   <div class="uid" id="uid-info">yuklanmoqda...</div>
@@ -96,8 +97,8 @@ var UID=new URLSearchParams(location.search).get('uid')||(tg&&tg.initDataUnsafe&
 var H={'Content-Type':'application/json','x-telegram-id':UID};
 document.getElementById('uid-info').textContent=UID?'ID: '+UID:'UID topilmadi!';
 
-var orders=[],couriers=[],prods=[],cats=[],fmap=null,cFilt='all',editId=null,curPage='dash';
-var PAGES=['dash','orders','map','menu','add','broadcast'];
+var orders=[],couriers=[],prods=[],cats=[],customers=[],fmap=null,cFilt='all',editId=null,curPage='dash';
+var PAGES=['dash','orders','map','menu','add','customers','broadcast'];
 var SL={new:'Yangi',accepted:'Qabul',cooking:'Tayyorlanmoqda',on_way:"Yo'lda",delivered:'Yetkazildi',cancelled:'Bekor'};
 var SC={new:'s-new',accepted:'s-accepted',cooking:'s-cooking',on_way:'s-on_way',delivered:'s-delivered',cancelled:'s-cancelled'};
 var PL={cash:'Naqd',click:'Click',payme:'Payme'};
@@ -120,6 +121,7 @@ function go(name){
   else if(name==='map')pageMap(m);
   else if(name==='menu')pageMenu(m);
   else if(name==='add')pageAdd(m);
+  else if(name==='customers')pageCustomers(m);
   else if(name==='broadcast')pageBroadcast(m);
 }
 
@@ -234,6 +236,74 @@ function sendBroadcast(){
     btn.disabled=false;btn.textContent='Yuborish';
     if(err){r.style.color='#e63946';r.textContent='Xatolik: '+err.message;}
     else{r.style.color='#16a34a';r.textContent='Yuborildi: '+data.sent+'/'+data.total+(data.failed?' (xatoliklar: '+data.failed+')':'');el('bcastMsg').value='';}
+  });
+}
+
+// ---------- CUSTOMERS ----------
+function pageCustomers(m){
+  m.innerHTML=
+    '<div class="ph"><h1>&#128100; Mijozlar</h1><button class="rbtn" onclick="loadCustomers()">&#128260; Yangilash</button></div>'+
+    '<div class="stats" style="grid-template-columns:repeat(2,1fr)">'+
+      '<div class="sc"><div class="sl">&#128101; Jami mijoz</div><div class="sv" id="cst-total">-</div></div>'+
+      '<div class="sc"><div class="sl">&#9989; iiko sinxron</div><div class="sv" id="cst-synced" style="color:#22c55e">-</div></div>'+
+    '</div>'+
+    '<input class="fi" id="cust-search" placeholder="&#128269; Ism, telefon yoki karta bo\'yicha qidirish..." oninput="renderCustomers()" style="margin-bottom:8px;padding:9px 11px">'+
+    '<div class="tbl">'+
+      '<div class="th" style="grid-template-columns:1fr 120px 70px 55px 78px"><span>Ism</span><span>Telefon</span><span>Karta</span><span>iiko</span><span></span></div>'+
+      '<div id="cbody"><div class="empty">Yuklanmoqda...</div></div>'+
+    '</div>';
+  loadCustomers();
+}
+
+function loadCustomers(){
+  var cb=el('cbody');
+  apiFetch('/api/admin/customers',null,function(err,data){
+    if(err){if(cb)cb.innerHTML='<div class="empty">Xatolik: '+err.message+'</div>';return;}
+    customers=data||[];
+    if(el('cst-total'))el('cst-total').textContent=customers.length;
+    if(el('cst-synced'))el('cst-synced').textContent=customers.filter(function(c){return c.iiko_customer_id;}).length;
+    renderCustomers();
+  });
+}
+
+function renderCustomers(){
+  var cb=el('cbody');if(!cb)return;
+  var q=((el('cust-search')&&el('cust-search').value)||'').toLowerCase().trim();
+  var list=customers;
+  if(q)list=customers.filter(function(c){
+    return (((c.first_name||'')+' '+(c.last_name||'')).toLowerCase().indexOf(q)>=0)||((c.phone||'').indexOf(q)>=0)||((c.card_number||'').indexOf(q)>=0);
+  });
+  cb.innerHTML=list.length?list.map(function(c){
+    var name=((c.first_name||'')+' '+(c.last_name||'')).trim()||'?';
+    var sub=(c.age_range||'')+(c.gender==='male'?' д':c.gender==='female'?' а':'');
+    var synced=c.iiko_customer_id?'<span class="sp s-delivered">&#9989;</span>':'<span class="sp s-new">&#10060;</span>';
+    return '<div class="tr" style="grid-template-columns:1fr 120px 70px 55px 78px">'+
+      '<div><div style="font-weight:700;font-size:12px">'+name+'</div><div style="font-size:10px;color:#64748b">'+sub+'</div></div>'+
+      '<span style="font-size:11px">'+(c.phone||'-')+'</span>'+
+      '<span class="on2" style="font-size:12px">'+(c.card_number||'-')+'</span>'+
+      '<span>'+synced+'</span>'+
+      '<button class="tb ton" onclick="checkIiko(\''+(c.phone||'')+'\',\''+name.replace(/[\\\\\']/g,"")+'\')">iiko&#128269;</button>'+
+    '</div>';
+  }).join(''):'<div class="empty">Mijoz topilmadi</div>';
+}
+
+function checkIiko(phone,name){
+  if(!phone){alert("Bu mijozda telefon yo'q");return;}
+  el('MT').textContent='iiko: '+name;
+  el('MB').innerHTML='<div class="empty">iiko\'da tekshirilmoqda...</div>';
+  el('modal').style.display='flex';
+  apiFetch('/api/admin/iiko/customer-info?phone='+encodeURIComponent(phone),null,function(err,d){
+    if(err){el('MB').innerHTML='<div style="color:#e63946;padding:10px">Xatolik: '+err.message+'</div>';return;}
+    if(!d||!d.found){el('MB').innerHTML='<div style="color:#e63946;padding:10px">&#10060; iiko\'da topilmadi.<br><br>Telefon: '+phone+'<br><br>'+(d&&d.error?'('+d.error+')':'')+'</div>';return;}
+    var cards=(d.cards||[]).join(', ')||'-';
+    var wallets=(d.wallets||[]).map(function(w){return w.name+': '+(w.balance||0);}).join('<br>')||'-';
+    el('MB').innerHTML=
+      '<div style="padding:8px 0;color:#16a34a;font-weight:800">&#9989; iiko loyalty\'da mavjud</div>'+
+      '<div class="dl">Ism</div><div class="dv">'+(d.name||'-')+'</div>'+
+      '<div class="dl">Telefon</div><div class="dv">'+(d.phone||'-')+'</div>'+
+      '<div class="dl">Kartalar</div><div class="dv">'+cards+'</div>'+
+      '<div class="dl">Hamyon (bonus)</div><div class="dv">'+wallets+'</div>'+
+      '<div class="dl">iiko ID</div><div class="dv" style="font-size:10px;word-break:break-all">'+(d.id||'-')+'</div>';
   });
 }
 
