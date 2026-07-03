@@ -80,14 +80,14 @@ function isAdmin(req) {
 // ── CUSTOMER & BONUS HELPERS ─────────────────────────────────────────────────
 
 function generateCardNumber() {
-  // 10 raqamli noyob karta raqami (1000000000..9999999999)
-  for (let i = 0; i < 20; i++) {
-    const n = String(Math.floor(1e9 + Math.random() * 9e9));
+  // 5 raqamli noyob karta raqami (10000..99999) — kassada qo'lda kiritish oson bo'lsin
+  for (let i = 0; i < 60; i++) {
+    const n = String(Math.floor(10000 + Math.random() * 90000));
     const existing = db.prepare('SELECT 1 FROM customers WHERE card_number=?').get(n);
     if (!existing) return n;
   }
-  // Fallback: ts-based
-  return String(1000000000 + (Date.now() % 9000000000));
+  // Fallback: ts-based 5 xonali
+  return String(10000 + (Date.now() % 90000));
 }
 
 function getCustomer(telegramId) {
@@ -1514,7 +1514,7 @@ app.get('/api/customer/me', (req, res) => {
 // QR kod rasm — karta_raqami ni kodlaydi
 app.get('/qr/:cardNumber', async (req, res) => {
   const cn = (req.params.cardNumber || '').replace(/\.png$/i, '').replace(/\D/g, '');
-  if (!cn || cn.length < 6) return res.status(400).send('invalid');
+  if (!cn || cn.length < 4) return res.status(400).send('invalid');
   try {
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Cache-Control', 'public, max-age=86400');
