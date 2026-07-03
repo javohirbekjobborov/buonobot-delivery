@@ -6,10 +6,10 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f8fafc;color:#1e293b;padding-bottom:64px}
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;display:grid;grid-template-columns:repeat(4,1fr);z-index:60;box-shadow:0 -2px 10px rgba(0,0,0,.04)}
-.nav-item{background:none;border:none;padding:8px 4px 10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:#94a3b8;font-family:inherit;position:relative}
-.nav-item .nav-icon{font-size:22px;line-height:1}
-.nav-item .nav-label{font-size:10px;font-weight:600}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;display:grid;grid-template-columns:repeat(5,1fr);z-index:60;box-shadow:0 -2px 10px rgba(0,0,0,.04)}
+.nav-item{background:none;border:none;padding:8px 2px 10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:#94a3b8;font-family:inherit;position:relative}
+.nav-item .nav-icon{font-size:21px;line-height:1}
+.nav-item .nav-label{font-size:9px;font-weight:600;white-space:nowrap}
 .nav-item.active{color:#e63946}
 .nav-item .nav-badge{position:absolute;top:4px;right:18px;background:#e63946;color:#fff;border-radius:10px;min-width:16px;height:16px;font-size:9px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 4px}
 .nav-item .nav-badge.show{display:inline-flex}
@@ -90,7 +90,7 @@ textarea.inp{min-height:60px;resize:none}
 <div id="pg-main">
   <div class="hdr">
     <h1>&#127828; Buono Burger</h1>
-    <button class="cart-btn" onclick="openCart()">&#128722; <span id="cart-count">0</span></button>
+    <span style="font-size:13px;font-weight:600;opacity:.9">&#9201; 10:00–23:00</span>
   </div>
   <div class="cats" id="cats"></div>
   <div id="menu-body"></div>
@@ -123,8 +123,9 @@ textarea.inp{min-height:60px;resize:none}
     <input class="inp" id="f-phone" placeholder="+998 90 123 45 67" type="tel">
   </div>
   <div class="form-box">
-    <h3>&#128205; Yetkazish manzili</h3>
-    <input class="inp" id="f-addr" placeholder="Ko'cha, uy raqami..." type="text">
+    <h3>&#128205; Yetkazish manzili <span style="color:#e63946">*</span></h3>
+    <input class="inp" id="f-addr" placeholder="Ko'cha nomi, uy va kvartira raqami — to'ldirilishi shart" type="text">
+    <div style="font-size:11px;color:#94a3b8;margin-top:6px;line-height:1.4">&#9888;&#65039; Ko'cha nomi va uy/kvartira raqamini to'liq yozing — bu maydon to'ldirilishi shart.</div>
     <button class="loc-btn" id="loc-btn" onclick="getLocation()">&#128205; Joylashuvimni aniqlash (GPS)</button>
     <div id="loc-info" style="margin-top:8px;font-size:12px;color:#64748b;line-height:1.5">
       &#9201; <b>Taxminiy yetkazib berish: 30–60 daqiqa</b><br>
@@ -218,6 +219,10 @@ textarea.inp{min-height:60px;resize:none}
 <nav class="bottom-nav">
   <button class="nav-item active" id="nav-menu" onclick="navTo('menu')">
     <span class="nav-icon">&#127828;</span><span class="nav-label">Menyu</span>
+  </button>
+  <button class="nav-item" id="nav-cart" onclick="openCart()">
+    <span class="nav-icon">&#128722;</span><span class="nav-label">Savatcha</span>
+    <span class="nav-badge" id="cart-badge">0</span>
   </button>
   <button class="nav-item" id="nav-card" onclick="navTo('card')">
     <span class="nav-icon">&#127915;</span><span class="nav-label">Karta</span>
@@ -568,10 +573,18 @@ function cartCount() {
 
 function updateUI() {
   const cnt = cartCount(), tot = cartTotal();
-  document.getElementById('cart-count').textContent = cnt;
-  document.getElementById('cart-total-btn').textContent = tot.toLocaleString()+" so'm";
+  const cc = document.getElementById('cart-count');
+  if (cc) cc.textContent = cnt;
+  const totBtn = document.getElementById('cart-total-btn');
+  if (totBtn) totBtn.textContent = tot.toLocaleString()+" so'm";
   const btn = document.getElementById('goto-cart');
   if(btn) btn.disabled = cnt===0;
+  // Pastki navdagi savatcha belgisi (badge)
+  const cb = document.getElementById('cart-badge');
+  if (cb) {
+    if (cnt > 0) { cb.textContent = cnt; cb.classList.add('show'); }
+    else cb.classList.remove('show');
+  }
   // Bottom-bar (floating Savatcha) — faqat mahsulot bo'lsa ko'rinadi
   const bar = document.querySelector('#pg-main .bottom-bar');
   if (bar) bar.classList.toggle('show', cnt > 0);
@@ -580,8 +593,12 @@ function updateUI() {
 // Pages
 function openCart() {
   const items = cartItems();
-  if(items.length===0) return;
   const el = document.getElementById('cart-body');
+  if(items.length===0) {
+    el.innerHTML = '<div class="empty"><div class="icon">&#128722;</div><p>Savatchangiz bo\'sh</p><p style="font-size:13px;color:#94a3b8;margin-top:6px">Menyudan mahsulot qo\'shing</p></div>';
+    openPage('pg-cart');
+    return;
+  }
   const tot = cartTotal();
   el.innerHTML = items.map(i=>
     '<div class="cart-item">'+
@@ -667,6 +684,14 @@ function getLocation() {
   );
 }
 
+// Telefonni tekshirib +998XXXXXXXXX ga keltiradi. Noto'g'ri bo'lsa null qaytaradi.
+function validatePhone(raw) {
+  const digits = String(raw||'').replace(/\D/g, '');
+  if (digits.length === 9) return '+998' + digits;                       // 901234567
+  if (digits.length === 12 && digits.startsWith('998')) return '+' + digits; // 998901234567
+  return null;
+}
+
 // Submit
 async function submitOrder() {
   const name = document.getElementById('f-name').value.trim();
@@ -676,7 +701,17 @@ async function submitOrder() {
 
   if(!name) { alert("Ismingizni kiriting!"); return; }
   if(!phone) { alert("Telefon raqamingizni kiriting!"); return; }
-  if(!addr && !userLat) { alert("Manzil yoki GPS lokatsiyangizni kiriting!"); return; }
+  const normPhone = validatePhone(phone);
+  if(!normPhone) {
+    alert("Telefon raqami noto'g'ri formatда!\n\nIltimos to'g'ri kiriting, masalan:\n+998 90 123 45 67");
+    document.getElementById('f-phone').focus();
+    return;
+  }
+  if(!addr || addr.length < 5) {
+    alert("Yetkazish manzilini to'liq kiriting!\n\nKo'cha nomi va uy/kvartira raqami — to'ldirilishi shart.");
+    document.getElementById('f-addr').focus();
+    return;
+  }
 
   const items = cartItems();
   if(!items.length) { alert("Savatcha bo'sh!"); return; }
@@ -691,7 +726,7 @@ async function submitOrder() {
       method: 'POST', headers: H,
       body: JSON.stringify({
         user_id: UID || 'anon',
-        user_name: name, user_phone: phone,
+        user_name: name, user_phone: normPhone,
         items: items.map(i=>({id:i.id, name_uz:i.name_uz, qty:i.qty, price:i.price})),
         total: cartTotal(),
         address: addr, lat: userLat, lng: userLng,
