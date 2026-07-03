@@ -905,6 +905,37 @@ function notifyAdmin(order) {
   });
 }
 
+// Buyurtma berilgandan so'ng mijozga tafsilotlar + taxminiy vaqt yuboramiz
+function notifyCustomerNewOrder(order) {
+  if (!order.user_id || order.user_id === 'anon') return;
+  const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let items = [];
+  try { items = JSON.parse(order.items); } catch(e) {}
+  const bonus = order.bonus_used || 0;
+  const payable = Math.max(0, (order.total||0) - bonus);
+  const isPickup = order.delivery_type === 'pickup';
+
+  let t = '🎉 <b>Buyurtmangiz qabul qilindi!</b>\n';
+  t += '🧾 Buyurtma raqami: <b>#'+order.id+'</b>\n\n';
+  items.forEach(i => { t += '▪️ '+esc(i.name_uz)+' × '+i.qty+' — '+(i.price*i.qty).toLocaleString()+" so'm\n"; });
+  t += '➖➖➖➖➖➖➖➖\n';
+  if (bonus > 0) {
+    t += 'Mahsulotlar: '+order.total.toLocaleString()+" so'm\n";
+    t += '💸 Bonus: −'+bonus.toLocaleString()+" so'm\n";
+    t += "To'lanadi: <b>"+payable.toLocaleString()+" so'm</b>\n";
+  } else {
+    t += 'Jami: <b>'+order.total.toLocaleString()+" so'm</b>\n";
+  }
+  t += '💳 '+paymentLabel(order)+'\n';
+  if (isPickup) t += "🏃 O'zingiz olib ketasiz\n";
+  else if (order.address) t += '📍 '+esc(order.address)+'\n';
+  if (order.comment) t += '💬 '+esc(order.comment)+'\n';
+  t += '\n⏰ <b>Taxminiy '+(isPickup ? 'tayyor bo\'lish' : 'yetkazib berish')+' vaqti: '+estimatedDeliveryText()+'</b>\n\n';
+  t += "Holati o'zgarganda sizga xabar beramiz. Rahmat! 🍔";
+
+  bot.telegram.sendMessage(order.user_id, t, { parse_mode: 'HTML' }).catch(()=>{});
+}
+
 function notifyCourier(courierId, order) {
   const items = JSON.parse(order.items);
   let t = '🛵 Buyurtma #'+order.id+' tayinlandi!\n\n';
@@ -1018,6 +1049,7 @@ app.post('/api/orders', async (req, res) => {
   }
 
   notifyAdmin(order);
+  notifyCustomerNewOrder(order);
 
   // iiko-ga buyurtma yuborish (fonda)
   if (iiko.isConfigured()) {
