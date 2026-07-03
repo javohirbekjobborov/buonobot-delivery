@@ -11,6 +11,22 @@ let tokenCache = { token: null, exp: 0 };
 
 function isConfigured() { return !!(API_LOGIN && ORG_ID); }
 
+// Telefonni iiko uchun xalqaro formatga keltiramiz (+998XXXXXXXXX).
+// iiko "+" bilan boshlanmagan raqamni rad etadi: "Phone number must begin with symbol +".
+function normalizePhone(raw) {
+  if (raw === undefined || raw === null) return '';
+  let digits = String(raw).replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.length === 9) {
+    // Lokal UZ raqami: 901234567 -> 998901234567
+    digits = '998' + digits;
+  } else if (digits.length === 12 && digits.startsWith('998')) {
+    // 998901234567 -> shundayligicha
+  }
+  // Boshqa uzunliklar bor holicha qoladi, faqat "+" kafolatlanadi
+  return '+' + digits;
+}
+
 async function getToken() {
   if (tokenCache.token && Date.now() < tokenCache.exp) return tokenCache.token;
   const res = await fetch(BASE + '/api/1/access_token', {
@@ -100,7 +116,7 @@ async function createDelivery(payload) {
     terminalGroupId: TERMINAL_GROUP_ID,
     createOrderSettings: { mode: 'Async' },
     order: {
-      phone: payload.phone || '',
+      phone: normalizePhone(payload.phone),
       customer: payload.customerName ? { name: payload.customerName, type: 'regular' } : undefined,
       items,
       comment: payload.comment || '',
@@ -108,10 +124,17 @@ async function createDelivery(payload) {
       orderServiceType: payload.deliveryType === 'pickup' ? 'DeliveryPickUp' : 'DeliveryByCourier'
     }
   };
-  if (payload.address && payload.deliveryType !== 'pickup') {
-    body.order.deliveryPoint = {
-      address: { street: { name: payload.address }, house: payload.house || '-', city: 'Tashkent' }
+  // Yetkazib berish uchun manzil nuqtasi: matn + (agar bor bo'lsa) GPS koordinatalari.
+  // Manzil matni bo'sh bo'lsa ham koordinata bilan yuboramiz (GPS-only buyurtmalar).
+  if (payload.deliveryType !== 'pickup') {
+    const streetName = (payload.address && String(payload.address).trim()) || 'GPS lokatsiya';
+    const dp = {
+      address: { street: { name: streetName }, house: payload.house || '-', city: 'Tashkent' }
     };
+    if (typeof payload.lat === 'number' && typeof payload.lng === 'number') {
+      dp.coordinates = { latitude: payload.lat, longitude: payload.lng };
+    }
+    body.order.deliveryPoint = dp;
   }
   return call('/api/1/deliveries/create', body);
 }
@@ -122,7 +145,7 @@ async function customerCreateOrUpdate(customer) {
   if (!isConfigured() || !CRM_ENABLED) return null;
   const body = {
     organizationId: ORG_ID,
-    phone: customer.phone,
+    phone: normalizePhone(customer.phone),
     name: customer.first_name || customer.name || '',
     middleName: '',
     surName: customer.last_name || ''
@@ -157,7 +180,7 @@ async function customerInfo(phone) {
   return call('/api/1/loyalty/iiko/customer/info', {
     organizationId: ORG_ID,
     type: 'phone',
-    phone
+    phone: normalizePhone(phone)
   });
 }
 
@@ -193,6 +216,7 @@ async function getLoyaltyPrograms() {
 
 module.exports = {
   isConfigured,
+  normalizePhone,
   crmEnabled: () => CRM_ENABLED,
   config: { ORG_ID, TERMINAL_GROUP_ID },
   getToken,
