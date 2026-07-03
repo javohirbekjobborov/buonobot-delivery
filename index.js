@@ -1532,6 +1532,29 @@ app.get('/api/admin/customers', (req, res) => {
   res.json(customers);
 });
 
+// Admin: mijozni iiko loyalty'da telefon bo'yicha jonli tekshirish
+app.get('/api/admin/iiko/customer-info', async (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  if (!iiko.isConfigured() || !iiko.crmEnabled()) return res.status(400).json({ error: 'iiko CRM disabled' });
+  const phone = (req.query.phone || '').trim();
+  if (!phone) return res.status(400).json({ error: 'phone required' });
+  try {
+    const info = await iiko.customerInfo(phone);
+    if (!info || !info.id) return res.json({ found: false });
+    res.json({
+      found: true,
+      id: info.id,
+      name: ((info.name || '') + ' ' + (info.surname || '')).trim(),
+      phone: info.phone,
+      cards: (info.cards || []).map(c => c.number),
+      wallets: (info.walletBalances || []).map(w => ({ name: w.name, balance: w.balance }))
+    });
+  } catch (e) {
+    // iiko topilmagan mijoz uchun xato qaytaradi — buni "found:false" deb ko'rsatamiz
+    res.json({ found: false, error: (e.message || '').slice(0, 150) });
+  }
+});
+
 app.get('/api/orders/my', (req, res) => {
   const tid = getTid(req);
   if (!tid) return res.json([]);
