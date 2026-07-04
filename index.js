@@ -20,6 +20,9 @@ const RESTAURANT_ADDRESS = process.env.RESTAURANT_ADDRESS || "Yunusobod tumani, 
 const DELIVERY_RADIUS_KM = parseFloat(process.env.DELIVERY_RADIUS_KM || '3');
 const ETA_MIN_MINUTES = parseInt(process.env.ETA_MIN_MINUTES || '30');
 const ETA_MAX_MINUTES = parseInt(process.env.ETA_MAX_MINUTES || '60');
+// O'zi olib ketish uchun taxminiy tayyor bo'lish vaqti (yetkazishdan qisqaroq)
+const PICKUP_ETA_MIN_MINUTES = parseInt(process.env.PICKUP_ETA_MIN_MINUTES || '10');
+const PICKUP_ETA_MAX_MINUTES = parseInt(process.env.PICKUP_ETA_MAX_MINUTES || '20');
 
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -30,17 +33,28 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-// Joriy vaqtga 30-60 daqiqa qo'shib, mahalliy (UTC+5) vaqt oralig'i sifatida formatlaymiz
-function estimatedDeliveryWindow() {
+// Joriy vaqtga min-max daqiqa qo'shib, mahalliy (UTC+5) vaqt oralig'i sifatida formatlaymiz
+function etaWindow(minM, maxM) {
   const now = Date.now();
-  const min = new Date(now + ETA_MIN_MINUTES*60*1000 + 5*3600*1000);
-  const max = new Date(now + ETA_MAX_MINUTES*60*1000 + 5*3600*1000);
+  const min = new Date(now + minM*60*1000 + 5*3600*1000);
+  const max = new Date(now + maxM*60*1000 + 5*3600*1000);
   const fmt = d => String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');
   return fmt(min) + '–' + fmt(max);
 }
-function estimatedDeliveryText() {
-  return ETA_MIN_MINUTES + '–' + ETA_MAX_MINUTES + ' daqiqa (taxminan ' + estimatedDeliveryWindow() + ')';
+function etaText(minM, maxM) {
+  return minM + '–' + maxM + ' daqiqa (taxminan ' + etaWindow(minM, maxM) + ')';
 }
+// Buyurtma turiga qarab (pickup — 10-20, delivery — 30-60) daqiqa oralig'ini tanlaymiz
+function orderEtaMinMax(order) {
+  return (order && order.delivery_type === 'pickup')
+    ? [PICKUP_ETA_MIN_MINUTES, PICKUP_ETA_MAX_MINUTES]
+    : [ETA_MIN_MINUTES, ETA_MAX_MINUTES];
+}
+function orderEtaText(order) { const m = orderEtaMinMax(order); return etaText(m[0], m[1]); }
+function orderEtaWindow(order) { const m = orderEtaMinMax(order); return etaWindow(m[0], m[1]); }
+// Delivery uchun standart (backward-compat)
+function estimatedDeliveryWindow() { return etaWindow(ETA_MIN_MINUTES, ETA_MAX_MINUTES); }
+function estimatedDeliveryText() { return etaText(ETA_MIN_MINUTES, ETA_MAX_MINUTES); }
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
@@ -931,7 +945,7 @@ function notifyCustomerNewOrder(order) {
   if (isPickup) t += "🏃 O'zingiz olib ketasiz\n";
   else if (order.address) t += '📍 '+esc(order.address)+'\n';
   if (order.comment) t += '💬 '+esc(order.comment)+'\n';
-  t += '\n⏰ <b>Taxminiy '+(isPickup ? 'tayyor bo\'lish' : 'yetkazib berish')+' vaqti: '+estimatedDeliveryText()+'</b>\n\n';
+  t += '\n⏰ <b>Taxminiy '+(isPickup ? 'tayyor bo\'lish' : 'yetkazib berish')+' vaqti: '+orderEtaText(order)+'</b>\n\n';
   t += "Holati o'zgarganda sizga xabar beramiz. Rahmat! 🍔";
 
   bot.telegram.sendMessage(order.user_id, t, { parse_mode: 'HTML' }).catch(()=>{});
@@ -956,9 +970,9 @@ function notifyCustomer(order) {
   };
   if (!m[order.status]) return;
   let msg = m[order.status];
-  // Taxminiy yetkazib berish vaqti — qabul qilingan va tayyorlanmoqda statuslarida
+  // Taxminiy vaqt — qabul qilingan va tayyorlanmoqda statuslarida
   if (order.status === 'accepted' || order.status === 'cooking') {
-    msg += "\n\n⏰ Taxminiy yetkazib berish: " + estimatedDeliveryText();
+    msg += "\n\n⏰ Taxminiy " + (order.delivery_type === 'pickup' ? "tayyor bo'lish" : "yetkazib berish") + ": " + orderEtaText(order);
   }
   if (order.status==='on_way' || order.status==='delivered') {
     msg += "\n\n💳 To'lov: "+paymentLabel(order);
@@ -1081,8 +1095,9 @@ app.post('/api/orders', async (req, res) => {
   const response = {
     ok: true,
     order_id: r.lastInsertRowid,
-    eta_text: estimatedDeliveryText(),
-    eta_window: estimatedDeliveryWindow()
+    delivery_type: deliveryType,
+    eta_text: orderEtaText(order),
+    eta_window: orderEtaWindow(order)
   };
 
   // Payme bilan to'lov — checkout havolasini qaytaramiz
@@ -1353,6 +1368,8 @@ app.get('/api/config', (req, res) => {
     delivery_radius_km: DELIVERY_RADIUS_KM,
     eta_min_minutes: ETA_MIN_MINUTES,
     eta_max_minutes: ETA_MAX_MINUTES,
+    pickup_eta_min_minutes: PICKUP_ETA_MIN_MINUTES,
+    pickup_eta_max_minutes: PICKUP_ETA_MAX_MINUTES,
     bonus_percent: BONUS_PERCENT,
     welcome_bonus: WELCOME_BONUS,
     bonus_ttl_days: BONUS_TTL_DAYS,
