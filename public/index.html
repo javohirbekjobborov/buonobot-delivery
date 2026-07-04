@@ -143,7 +143,7 @@ textarea.inp{min-height:60px;resize:none}
   </div>
   <div class="form-box" id="pickup-box" style="display:none">
     <h3>&#127939; O'zi olib ketish</h3>
-    <div style="font-size:13px;color:#334155;line-height:1.7">&#128205; <b id="pickup-addr">Yunusobod, Gullola 13</b><br>&#9201; Buyurtmangiz tayyor bo'lganda botdan xabar beramiz.</div>
+    <div style="font-size:13px;color:#334155;line-height:1.7">&#128205; <b id="pickup-addr">Yunusobod, Gullola 13</b><br>&#9201; Taxminiy tayyor bo'lish: <b id="pickup-eta">10–20 daqiqa</b><br>&#128241; Tayyor bo'lganda botdan xabar beramiz.</div>
   </div>
   <div class="form-box" id="bonus-box" style="display:none">
     <h3>&#127873; Bonus ishlatish</h3>
@@ -669,6 +669,8 @@ function configureDeliveryType() {
   if (pickupBox) pickupBox.style.display = isPickup ? 'block' : 'none';
   const pa = document.getElementById('pickup-addr');
   if (pa && cfg && cfg.restaurant_address) pa.textContent = cfg.restaurant_address;
+  const pe = document.getElementById('pickup-eta');
+  if (pe && cfg && cfg.pickup_eta_min_minutes) pe.textContent = cfg.pickup_eta_min_minutes + '–' + cfg.pickup_eta_max_minutes + ' daqiqa';
 }
 
 function openPage(id) {
@@ -791,8 +793,14 @@ async function submitOrder() {
         }
         return;
       }
-      let msg = '&#9201; <b>Taxminiy yetkazib berish: '+(data.eta_text || '30–60 daqiqa')+'</b>';
-      msg += '<br><br>Kuryerimiz tez orada yetib boradi. &#128757;';
+      let msg;
+      if (isPickup) {
+        msg = "&#9201; <b>Taxminiy tayyor bo'lish: "+(data.eta_text || '10–20 daqiqa')+'</b>';
+        msg += '<br><br>&#127939; Tayyor bo\'lganda botdan xabar beramiz.<br>&#128205; '+(cfg.restaurant_address||'');
+      } else {
+        msg = '&#9201; <b>Taxminiy yetkazib berish: '+(data.eta_text || '30–60 daqiqa')+'</b>';
+        msg += '<br><br>Kuryerimiz tez orada yetib boradi. &#128757;';
+      }
       if (bonusUsed > 0) msg += '<br><br>💸 '+bonusUsed.toLocaleString()+" so'm bonus ishlatildi.";
       document.getElementById('success-msg').innerHTML = msg;
       openPage('pg-success');
