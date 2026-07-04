@@ -72,6 +72,15 @@ textarea.inp{min-height:60px;resize:none}
 .pay-opt.on .pay-name{color:#e63946}
 .pay-info{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:11px 13px;margin-top:8px;font-size:13px;color:#166534;line-height:1.5;display:none}
 .pay-info.show{display:block}
+/* Telefon +998 prefiks */
+.phone-wrap{display:flex;align-items:center;border:2px solid #e2e8f0;border-radius:10px;overflow:hidden;transition:.15s}
+.phone-wrap:focus-within{border-color:#e63946}
+.phone-wrap .pfx{padding:11px 4px 11px 13px;color:#334155;font-weight:700;font-size:14px;background:#f1f5f9;white-space:nowrap;align-self:stretch;display:flex;align-items:center}
+.phone-wrap input{border:none;flex:1;padding:11px 13px;font-size:14px;outline:none;font-family:inherit;background:transparent;min-width:0}
+/* Buyurtma turi tugmalari */
+.type-opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.type-opt{border:2px solid #e2e8f0;border-radius:12px;padding:14px 8px;text-align:center;cursor:pointer;background:#fff;font-weight:800;font-size:13px;color:#334155;transition:.15s;font-family:inherit}
+.type-opt:active{transform:scale(.97);border-color:#e63946}
 .submit-btn{width:100%;padding:15px;background:#e63946;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;margin-top:4px}
 .submit-btn:disabled{background:#94a3b8;cursor:default}
 .empty{text-align:center;padding:50px 20px;color:#94a3b8}
@@ -114,15 +123,15 @@ textarea.inp{min-height:60px;resize:none}
 <!-- CHECKOUT PAGE -->
 <div class="page" id="pg-checkout">
   <div class="page-hdr">
-    <button class="back-btn" onclick="closePage('pg-checkout')">&#8592;</button>
-    <h2>&#128203; Buyurtma berish</h2>
+    <button class="back-btn" onclick="closePage('pg-checkout');openCart()">&#8592;</button>
+    <h2 id="checkout-title">&#128203; Buyurtma berish</h2>
   </div>
   <div class="form-box">
     <h3>&#128100; Kontakt ma'lumotlari</h3>
-    <input class="inp" id="f-name" placeholder="Ismingiz" type="text">
-    <input class="inp" id="f-phone" placeholder="+998 90 123 45 67" type="tel">
+    <input class="inp" id="f-name" placeholder="Ismingiz" type="text" style="margin-bottom:8px">
+    <div class="phone-wrap"><span class="pfx">&#127482;&#127487; +998</span><input id="f-phone" placeholder="90 123 45 67" type="tel" inputmode="numeric"></div>
   </div>
-  <div class="form-box">
+  <div class="form-box" id="addr-box">
     <h3>&#128205; Yetkazish manzili <span style="color:#e63946">*</span></h3>
     <input class="inp" id="f-addr" placeholder="Ko'cha nomi, uy va kvartira raqami — to'ldirilishi shart" type="text">
     <div style="font-size:11px;color:#94a3b8;margin-top:6px;line-height:1.4">&#9888;&#65039; Ko'cha nomi va uy/kvartira raqamini to'liq yozing — bu maydon to'ldirilishi shart.</div>
@@ -131,6 +140,10 @@ textarea.inp{min-height:60px;resize:none}
       &#9201; <b>Taxminiy yetkazib berish: 30–60 daqiqa</b><br>
       &#128666; Radius: <b id="cfg-radius">3 km</b> &middot; &#127828; <span id="cfg-addr">Yunusobod, Gullola 13</span>
     </div>
+  </div>
+  <div class="form-box" id="pickup-box" style="display:none">
+    <h3>&#127939; O'zi olib ketish</h3>
+    <div style="font-size:13px;color:#334155;line-height:1.7">&#128205; <b id="pickup-addr">Yunusobod, Gullola 13</b><br>&#9201; Buyurtmangiz tayyor bo'lganda botdan xabar beramiz.</div>
   </div>
   <div class="form-box" id="bonus-box" style="display:none">
     <h3>&#127873; Bonus ishlatish</h3>
@@ -243,7 +256,7 @@ if(tg) tg.expand();
 const UID = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? String(tg.initDataUnsafe.user.id) : '';
 const H = {'Content-Type':'application/json','x-telegram-id':UID};
 
-let cart = {}, cats = [], prods = [], selPay = 'click', userLat = null, userLng = null;
+let cart = {}, cats = [], prods = [], selPay = 'click', userLat = null, userLng = null, deliveryType = 'delivery';
 let customerProfile = null;
 
 function loadCustomerProfile(cb) {
@@ -620,9 +633,18 @@ function openCart() {
     items.map(i=>'<div class="total-row"><span>'+i.name_uz+' × '+i.qty+'</span><span>'+(i.price*i.qty).toLocaleString()+" so'm</span></div>").join('')+
     '<div class="total-row big"><span>Jami</span><span>'+tot.toLocaleString()+" so'm</span></div>"+
   '</div>'+
-  '<button class="submit-btn" style="margin-top:10px" onclick="openCheckout()">Buyurtma berish &#8594;</button>'+
+  '<div style="margin-top:14px;font-size:13px;font-weight:700;color:#64748b;margin-bottom:8px;text-align:center">Buyurtma turini tanlang:</div>'+
+  '<div class="type-opts">'+
+    '<button class="type-opt" onclick="chooseType(\'pickup\')"><div style="font-size:26px;margin-bottom:4px">&#127939;</div>O\'zi olib ketish</button>'+
+    '<button class="type-opt" onclick="chooseType(\'delivery\')"><div style="font-size:26px;margin-bottom:4px">&#128757;</div>Yetkazib berish</button>'+
+  '</div>'+
   '</div>';
   openPage('pg-cart');
+}
+
+function chooseType(type){
+  deliveryType = (type === 'pickup') ? 'pickup' : 'delivery';
+  openCheckout();
 }
 
 function addCart(id) { add(id); openCart(); }
@@ -631,9 +653,22 @@ function removeCart(id) { delete cart[id]; updateUI(); openCart(); }
 
 function openCheckout() {
   closePage('pg-cart');
+  configureDeliveryType();
   openPage('pg-checkout');
   if (!customerProfile) loadCustomerProfile(configureBonusBox);
   else configureBonusBox();
+}
+
+function configureDeliveryType() {
+  const isPickup = deliveryType === 'pickup';
+  const title = document.getElementById('checkout-title');
+  if (title) title.innerHTML = isPickup ? "&#127939; O'zi olib ketish" : "&#128757; Yetkazib berish";
+  const addrBox = document.getElementById('addr-box');
+  if (addrBox) addrBox.style.display = isPickup ? 'none' : 'block';
+  const pickupBox = document.getElementById('pickup-box');
+  if (pickupBox) pickupBox.style.display = isPickup ? 'block' : 'none';
+  const pa = document.getElementById('pickup-addr');
+  if (pa && cfg && cfg.restaurant_address) pa.textContent = cfg.restaurant_address;
 }
 
 function openPage(id) {
@@ -698,16 +733,17 @@ async function submitOrder() {
   const phone = document.getElementById('f-phone').value.trim();
   const addr = document.getElementById('f-addr').value.trim();
   const comment = document.getElementById('f-comment').value.trim();
+  const isPickup = deliveryType === 'pickup';
 
   if(!name) { alert("Ismingizni kiriting!"); return; }
-  if(!phone) { alert("Telefon raqamingizni kiriting!"); return; }
+  if(!phone) { alert("Telefon raqamingizni kiriting!"); document.getElementById('f-phone').focus(); return; }
   const normPhone = validatePhone(phone);
   if(!normPhone) {
-    alert("Telefon raqami noto'g'ri formatда!\n\nIltimos to'g'ri kiriting, masalan:\n+998 90 123 45 67");
+    alert("Telefon raqami noto'g'ri!\n\n+998 dan keyin 9 ta raqam kiriting, masalan:\n90 123 45 67");
     document.getElementById('f-phone').focus();
     return;
   }
-  if(!addr || addr.length < 5) {
+  if(!isPickup && (!addr || addr.length < 5)) {
     alert("Yetkazish manzilini to'liq kiriting!\n\nKo'cha nomi va uy/kvartira raqami — to'ldirilishi shart.");
     document.getElementById('f-addr').focus();
     return;
@@ -729,7 +765,10 @@ async function submitOrder() {
         user_name: name, user_phone: normPhone,
         items: items.map(i=>({id:i.id, name_uz:i.name_uz, qty:i.qty, price:i.price})),
         total: cartTotal(),
-        address: addr, lat: userLat, lng: userLng,
+        address: isPickup ? '' : addr,
+        lat: isPickup ? null : userLat,
+        lng: isPickup ? null : userLng,
+        delivery_type: deliveryType,
         comment, payment: selPay,
         bonus_used: bonusUsed
       })
