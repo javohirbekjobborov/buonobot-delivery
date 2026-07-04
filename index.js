@@ -894,6 +894,7 @@ function notifyAdmin(order) {
   items.forEach(i => { t += '▪ '+i.name_uz+' × '+i.qty+' = '+(i.price*i.qty).toLocaleString()+" so'm\n"; });
   t += '\nJami: '+order.total.toLocaleString()+" so'm";
   t += '\n'+paymentLabel(order);
+  t += '\n'+(order.delivery_type === 'pickup' ? "🏃 O'zi olib ketish" : "🛵 Yetkazib berish");
   if (order.comment) t += '\n💬 '+order.comment;
   if (order.address) t += '\n📍 '+order.address;
 
@@ -1040,8 +1041,8 @@ app.post('/api/orders', async (req, res) => {
     if (bonusUsed > allowedMax) return res.status(400).json({ error: "Bonus limiti oshib ketdi. Maksimum: "+allowedMax.toLocaleString()+" so'm" });
   }
 
-  const r = db.prepare('INSERT INTO orders (user_id,user_name,user_phone,items,total,address,lat,lng,comment,payment,bonus_used) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-    .run(user_id, user_name, user_phone, JSON.stringify(items), total, address, lat, lng, comment, payment, bonusUsed);
+  const r = db.prepare('INSERT INTO orders (user_id,user_name,user_phone,items,total,address,lat,lng,comment,payment,bonus_used,delivery_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run(user_id, user_name, user_phone, JSON.stringify(items), total, address, lat, lng, comment, payment, bonusUsed, deliveryType);
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(r.lastInsertRowid);
 
   if (bonusUsed > 0) {
