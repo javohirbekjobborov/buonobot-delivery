@@ -285,6 +285,7 @@ async function syncIikoMenu() {
     const items = g.items || [];
     for (const it of items) {
       if (it.type !== 'DISH' && it.type !== 'GOOD' && it.type !== 'Dish' && it.type !== 'Good') continue;
+      if (it.isHidden) continue; // iiko'da yashirilgan taom botda ko'rinmasin
       const size = (it.itemSizes && it.itemSizes[0]) || null;
       if (!size) continue;
       if (size.isHidden) continue;

@@ -9,6 +9,11 @@ const CRM_ENABLED = (process.env.IIKO_CRM_ENABLED || 'false').toLowerCase() === 
 
 let tokenCache = { token: null, exp: 0 };
 
+// Node fetch standart holatda "Accept-Language: *" yuboradi — iiko /api/2/menu/by_id
+// bu qiymatda HTTP 500 (HTML xato sahifasi) qaytaradi va web menyu sinxroni butunlay
+// to'xtaydi. Shuning uchun tilni aniq ko'rsatamiz.
+const ACCEPT_LANGUAGE = process.env.IIKO_LANGUAGE || 'ru';
+
 function isConfigured() { return !!(API_LOGIN && ORG_ID); }
 
 // Telefonni iiko uchun xalqaro formatga keltiramiz (+998XXXXXXXXX).
@@ -34,6 +39,7 @@ async function getToken() {
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'Accept-Language': ACCEPT_LANGUAGE,
       'User-Agent': 'BuonoBotDelivery/1.0 (Node.js)'
     },
     body: JSON.stringify({ apiLogin: API_LOGIN })
@@ -54,6 +60,7 @@ async function call(path, body, retry = true) {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ' + token,
       'Accept': 'application/json',
+      'Accept-Language': ACCEPT_LANGUAGE,
       'User-Agent': 'BuonoBotDelivery/1.0 (Node.js; +https://buonobot-delivery-production.up.railway.app)'
     },
     body: JSON.stringify(body || {})
