@@ -301,7 +301,8 @@ async function syncIikoMenu() {
 
       const existing = db.prepare('SELECT id FROM products WHERE iiko_id=?').get(iikoId);
       if (existing) {
-        db.prepare('UPDATE products SET name_uz=?, name_ru=?, desc_uz=?, desc_ru=?, price=?, category_id=?, image=COALESCE(NULLIF(?, ""), image), active=1, iiko_group_id=? WHERE id=?')
+        // SQL satr literali faqat '' bilan: "" SQLite'da ustun nomi deb o'qiladi (no such column)
+        db.prepare("UPDATE products SET name_uz=?, name_ru=?, desc_uz=?, desc_ru=?, price=?, category_id=?, image=COALESCE(NULLIF(?, ''), image), active=1, iiko_group_id=? WHERE id=?")
           .run(name, name, desc, desc, price, categoryId, image, g.id, existing.id);
       } else {
         db.prepare('INSERT INTO products (name_uz, name_ru, desc_uz, desc_ru, price, category_id, image, active, iiko_id, iiko_group_id) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)')
@@ -1734,7 +1735,7 @@ app.post('/api/admin/products', (req, res) => {
   if (iiko_id) {
     const existing = db.prepare('SELECT id FROM products WHERE iiko_id=?').get(iiko_id);
     if (existing) {
-      db.prepare('UPDATE products SET name_uz=?,name_ru=?,desc_uz=?,desc_ru=?,price=?,category_id=?,image=COALESCE(NULLIF(?, ""), image),iiko_group_id=?,active=1 WHERE id=?')
+      db.prepare("UPDATE products SET name_uz=?,name_ru=?,desc_uz=?,desc_ru=?,price=?,category_id=?,image=COALESCE(NULLIF(?, ''), image),iiko_group_id=?,active=1 WHERE id=?")
         .run(name_uz, name_ru||'', desc_uz||'', desc_ru||'', price, category_id||1, image||'', iiko_group_id||null, existing.id);
       return res.json({ ok: true, id: existing.id, updated: true });
     }
