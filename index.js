@@ -17,6 +17,8 @@ const MAX_BONUS_USE_PERCENT = parseInt(process.env.MAX_BONUS_USE_PERCENT || '50'
 const RESTAURANT_LAT = parseFloat(process.env.RESTAURANT_LAT || '41.3588914');
 const RESTAURANT_LNG = parseFloat(process.env.RESTAURANT_LNG || '69.3366373');
 const RESTAURANT_ADDRESS = process.env.RESTAURANT_ADDRESS || "Yunusobod tumani, Gullola ko'chasi 13";
+const RESTAURANT_NAME = process.env.RESTAURANT_NAME || 'Buono Burger';
+const WORK_HOURS = process.env.WORK_HOURS || '10:00–23:00';
 const DELIVERY_RADIUS_KM = parseFloat(process.env.DELIVERY_RADIUS_KM || '3');
 const ETA_MIN_MINUTES = parseInt(process.env.ETA_MIN_MINUTES || '30');
 const ETA_MAX_MINUTES = parseInt(process.env.ETA_MAX_MINUTES || '60');
@@ -386,7 +388,7 @@ bot.start(async ctx => {
   const customer = getCustomer(id);
   if (!customer) {
     return ctx.reply(
-      '🍔 Buono Burger ga xush kelibsiz!\n\nRo\'yxatdan o\'tib, sizga maxsus karta va '+WELCOME_BONUS.toLocaleString()+" so'm sovg'a bonus beramiz!\n\nIltimos telefon raqamingizni yuboring:",
+      '🍔 Buono Burger ga xush kelibsiz!\n\nRo\'yxatdan o\'tib, sizga maxsus karta va '+WELCOME_BONUS.toLocaleString()+" so'm sovg'a bonus beramiz!\n\n📍 Manzilimiz va xarita: /manzil\n\nIltimos telefon raqamingizni yuboring:",
       {
         reply_markup: {
           keyboard: [[{text: "📞 Telefon raqamni yuborish", request_contact: true}]],
@@ -406,16 +408,44 @@ async function showCustomerHome(ctx, customer) {
   const greeting = '🍔 Buono Burger\n\n'+
     '🎫 Karta raqami: <code>'+customer.card_number+'</code>\n'+
     '💰 Bonus balans: <b>'+customer.bonus_balance.toLocaleString()+" so'm</b>\n\n"+
-    '⏰ Ish vaqti: 10:00–23:00';
+    '⏰ Ish vaqti: '+WORK_HOURS;
   return ctx.reply(greeting, {
     parse_mode: 'HTML',
     reply_markup: Markup.inlineKeyboard([
-      [Markup.button.webApp('🛒 Menyuni ochish', APP_URL+'/index.html')],
-      [Markup.button.webApp('🎫 Mening kartam', APP_URL+'/index.html#card')],
-      [Markup.button.callback('⭐ Baho berish', 'fb_main')]
+      [Markup.button.webApp('🛒 Menyuni ochish', APP_URL+'/index.html'), Markup.button.callback('📍 Manzil', 'info_location')],
+      [Markup.button.webApp('🎫 Mening kartam', APP_URL+'/index.html#card'), Markup.button.callback('⭐ Baho berish', 'fb_main')]
     ]).reply_markup
   });
 }
+
+// Restoran joylashuvi: yo'l ko'rsatish havolalari (bo'sh boshlanish nuqtasi = mijozning joriy joyi)
+function restaurantMapLinks() {
+  const ll = RESTAURANT_LAT + ',' + RESTAURANT_LNG;
+  return {
+    yandex: 'https://yandex.uz/maps/?rtext=~' + ll + '&rtt=auto',
+    google: 'https://www.google.com/maps/dir/?api=1&destination=' + ll
+  };
+}
+
+// Mijozga to'g'ridan-to'g'ri Telegram lokatsiyasini (venue: xaritadagi nuqta + manzil + ish vaqti)
+// va navigatsiya tugmalarini bitta xabarda yuboradi
+function sendRestaurantLocation(chatId) {
+  const links = restaurantMapLinks();
+  return bot.telegram.sendVenue(chatId, RESTAURANT_LAT, RESTAURANT_LNG,
+    '🍔 '+RESTAURANT_NAME, RESTAURANT_ADDRESS+' · ⏰ '+WORK_HOURS, {
+    reply_markup: Markup.inlineKeyboard([
+      [Markup.button.url("🧭 Yandex — yo'l", links.yandex), Markup.button.url("🧭 Google — yo'l", links.google)]
+    ]).reply_markup
+  });
+}
+
+bot.command(['manzil', 'location'], ctx =>
+  sendRestaurantLocation(ctx.chat.id).catch(e => console.warn('[location]', e.message)));
+
+bot.action('info_location', async ctx => {
+  await ctx.answerCbQuery().catch(()=>{});
+  await sendRestaurantLocation(ctx.chat.id).catch(e => console.warn('[location]', e.message));
+});
 
 // Ro'yxatdan o'tish bosqichlari (telefon → ism → familiya → yosh → jins)
 const pendingRegistration = new Map();
@@ -690,7 +720,7 @@ bot.action(/^fb_or_(\d+)_(rating|sugg|comp)$/, async ctx => {
   }
 });
 
-bot.on('text', async ctx => {
+bot.on('text', async (ctx, next) => {
   const uid = String(ctx.from.id);
   const txt = (ctx.message.text || '').trim();
 
@@ -722,6 +752,10 @@ bot.on('text', async ctx => {
       return ctx.reply("ℹ️ Iltimos pastdagi tugmalardan birini tanlang.");
     }
   }
+
+  // Buyruqlar (/statistika, /chatid ...) — pastroqda ro'yxatdan o'tgan handlerlarga o'tkazamiz,
+  // aks holda bu handler ularni yutib yuboradi
+  if (txt.startsWith('/')) return next();
 
   // Feedback flow (mavjud)
   const state = getFb(uid);
@@ -1362,6 +1396,8 @@ app.get('/api/admin/payme/status', (req, res) => {
 // Mini app uchun konfiguratsiya (radius, restoran manzil, ETA)
 app.get('/api/config', (req, res) => {
   res.json({
+    restaurant_name: RESTAURANT_NAME,
+    work_hours: WORK_HOURS,
     restaurant_lat: RESTAURANT_LAT,
     restaurant_lng: RESTAURANT_LNG,
     restaurant_address: RESTAURANT_ADDRESS,

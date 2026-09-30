@@ -99,7 +99,7 @@ textarea.inp{min-height:60px;resize:none}
 <div id="pg-main">
   <div class="hdr">
     <h1>&#127828; Buono Burger</h1>
-    <span style="font-size:13px;font-weight:600;opacity:.9">&#9201; 10:00–23:00</span>
+    <button class="cart-btn" onclick="openLocation()">&#128205; Manzil</button>
   </div>
   <div class="cats" id="cats"></div>
   <div id="menu-body"></div>
@@ -144,6 +144,7 @@ textarea.inp{min-height:60px;resize:none}
   <div class="form-box" id="pickup-box" style="display:none">
     <h3>&#127939; O'zi olib ketish</h3>
     <div style="font-size:13px;color:#334155;line-height:1.7">&#128205; <b id="pickup-addr">Yunusobod, Gullola 13</b><br>&#9201; Taxminiy tayyor bo'lish: <b id="pickup-eta">10–20 daqiqa</b><br>&#128241; Tayyor bo'lganda botdan xabar beramiz.</div>
+    <button class="loc-btn" onclick="openLocation()">&#128506; Xaritada ko'rish va yo'l</button>
   </div>
   <div class="form-box" id="bonus-box" style="display:none">
     <h3>&#127873; Bonus ishlatish</h3>
@@ -193,6 +194,30 @@ textarea.inp{min-height:60px;resize:none}
   <div style="padding:0 16px 20px">
     <button class="submit-btn" id="submit-btn" onclick="submitOrder()">&#9989; Buyurtma berish</button>
   </div>
+</div>
+
+<!-- LOCATION PAGE -->
+<div class="page" id="pg-location">
+  <div class="page-hdr">
+    <button class="back-btn" onclick="closePage('pg-location')">&#8592;</button>
+    <h2>&#128205; Bizning manzil</h2>
+  </div>
+  <div class="form-box">
+    <h3 id="loc-name">&#127828; Buono Burger</h3>
+    <div id="loc-addr" style="font-size:14px;color:#1e293b;font-weight:600;line-height:1.5">Yunusobod tumani, Gullola ko'chasi 13</div>
+    <div style="font-size:13px;color:#64748b;margin-top:6px">&#9201; Ish vaqti: <b id="loc-hours">10:00–23:00</b></div>
+    <div style="font-size:12px;color:#64748b;margin-top:4px">&#127939; O'zi olib ketish buyurtmalari shu manzildan beriladi.</div>
+  </div>
+  <div class="form-box" style="padding:0;overflow:hidden;position:relative;height:260px;background:#eef2f7">
+    <!-- Xarita yuklanmasa (sekin internet) shu matn ko'rinadi; yuklangach iframe uni yopadi -->
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#64748b;font-size:13px;padding:0 24px;line-height:1.6">&#128506;<br>Xarita yuklanmoqda...<br><span style="font-size:11px">Yo'l ko'rsatish uchun pastdagi tugmalardan foydalaning</span></div>
+    <iframe id="loc-map" title="Xarita" style="position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent"></iframe>
+  </div>
+  <div style="padding:0 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <button class="submit-btn" style="font-size:14px;padding:13px" onclick="openMapApp('yandex')">&#129517; Yandex — yo'l</button>
+    <button class="submit-btn" style="font-size:14px;padding:13px;background:#1e293b" onclick="openMapApp('google')">&#129517; Google — yo'l</button>
+  </div>
+  <div style="padding:12px 16px 20px;font-size:12px;color:#64748b;text-align:center;line-height:1.5">&#128172; Telegram lokatsiyasini olish uchun botdagi <b>«&#128205; Manzil»</b> tugmasini bosing yoki <b>/manzil</b> yozing.</div>
 </div>
 
 <!-- SUCCESS PAGE -->
@@ -482,7 +507,35 @@ function configureBonusBox() {
 }
 
 // Init
-let cfg = { delivery_radius_km: 3, restaurant_address: "Yunusobod, Gullola 13", eta_min_minutes: 30, eta_max_minutes: 60, restaurant_lat: 41.3588914, restaurant_lng: 69.3366373 };
+let cfg = { delivery_radius_km: 3, restaurant_name: 'Buono Burger', work_hours: '10:00–23:00', restaurant_address: "Yunusobod, Gullola 13", eta_min_minutes: 30, eta_max_minutes: 60, restaurant_lat: 41.3588914, restaurant_lng: 69.3366373 };
+
+// Restoran joylashuvi: yo'l ko'rsatish havolalari (bo'sh boshlanish = mijozning joriy joyi)
+function mapLinks() {
+  const ll = cfg.restaurant_lat + ',' + cfg.restaurant_lng;
+  return {
+    yandex: 'https://yandex.uz/maps/?rtext=~' + ll + '&rtt=auto',
+    google: 'https://www.google.com/maps/dir/?api=1&destination=' + ll
+  };
+}
+function openLocation() {
+  document.getElementById('loc-name').textContent = '\u{1F354} ' + (cfg.restaurant_name || 'Buono Burger');
+  document.getElementById('loc-addr').textContent = cfg.restaurant_address || '';
+  document.getElementById('loc-hours').textContent = cfg.work_hours || '';
+  // OpenStreetMap embed (kalitsiz, iframe ichida ishonchli; Yandex vidjeti iframe'da chizilmaydi)
+  const lat = Number(cfg.restaurant_lat), lng = Number(cfg.restaurant_lng);
+  const bbox = [lng - 0.004, lat - 0.002, lng + 0.004, lat + 0.002].join(',');
+  const src = 'https://www.openstreetmap.org/export/embed.html?bbox=' + encodeURIComponent(bbox) +
+    '&layer=mapnik&marker=' + encodeURIComponent(lat + ',' + lng);
+  // Avval sahifani ko'rsatamiz: yashirin (0x0) iframe'da xarita markazi noto'g'ri hisoblanadi
+  openPage('pg-location');
+  const map = document.getElementById('loc-map');
+  if (map.getAttribute('src') !== src) requestAnimationFrame(() => map.setAttribute('src', src));
+}
+function openMapApp(which) {
+  const url = mapLinks()[which];
+  if (tg && tg.openLink) tg.openLink(url);
+  else window.open(url, '_blank');
+}
 
 fetch('/api/config').then(r=>r.json()).then(d=>{
   cfg = Object.assign(cfg, d);
