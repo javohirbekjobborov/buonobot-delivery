@@ -124,7 +124,7 @@ try { db.exec("ALTER TABLE customers ADD COLUMN gender TEXT"); } catch(e) {}
 const oldDefault = ['Burgerlar','Pizzalar','Salatlar','Ichimliklar'];
 const existingCats = db.prepare('SELECT name_uz FROM categories ORDER BY id').all().map(c=>c.name_uz);
 if (existingCats.length === 4 && existingCats.every((n,i)=>n===oldDefault[i])) {
-  db.exec('DELETE FROM products; DELETE FROM categories; DELETE FROM sqlite_sequence WHERE name IN ("products","categories");');
+  db.exec("DELETE FROM products; DELETE FROM categories; DELETE FROM sqlite_sequence WHERE name IN ('products','categories');");
 }
 
 if (db.prepare('SELECT COUNT(*) as c FROM categories').get().c === 0) {
