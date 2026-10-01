@@ -93,8 +93,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;
 <script>
 var tg=window.Telegram&&window.Telegram.WebApp;
 if(tg)tg.expand();
-var UID=new URLSearchParams(location.search).get('uid')||(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user?String(tg.initDataUnsafe.user.id):'');
-var H={'Content-Type':'application/json','x-telegram-id':UID};
+var UID=tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user?String(tg.initDataUnsafe.user.id):'';
+// Server adminni faqat Telegram imzolagan initData orqali taniydi (?uid= endi ishlamaydi)
+var H={'Content-Type':'application/json','X-Telegram-Init-Data':(tg&&tg.initData)||''};
 document.getElementById('uid-info').textContent=UID?'ID: '+UID:'UID topilmadi!';
 
 var orders=[],couriers=[],prods=[],cats=[],customers=[],fmap=null,cFilt='all',editId=null,curPage='dash';
@@ -309,10 +310,11 @@ function checkIiko(phone,name){
 
 // ---------- API ----------
 function apiFetch(url,opts,cb){
-  var sep=url.indexOf('?')>=0?'&':'?';
-  fetch(url+sep+'uid='+UID,opts||{headers:H})
-    .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+  fetch(url,opts||{headers:H})
+    .then(function(r){return r.json().then(function(d){return {ok:r.ok,status:r.status,data:d};});})
     .then(function(res){
+      // Ruxsat yo'q yoki initData eskirgan (panel 24 soatdan ko'p ochiq qolgan)
+      if(res.status===401||res.status===403){el('MC').innerHTML='<div style="padding:20px;color:#e63946;font-weight:700">Ruxsat yo\'q yoki sessiya eskirgan. Admin Panelni botdan qayta oching.</div>';}
       if(!res.ok){cb(new Error(res.data.error||'HTTP error'),null);}
       else{cb(null,res.data);}
     })

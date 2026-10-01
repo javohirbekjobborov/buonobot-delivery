@@ -6,6 +6,7 @@ const QRCode = require('qrcode');
 const db = require('./db');
 const iiko = require('./iiko');
 const payme = require('./payme');
+const telegramAuth = require('./telegramAuth');
 
 // Bonus tizimi konfiguratsiyasi
 const BONUS_PERCENT = parseFloat(process.env.BONUS_PERCENT || '5');
@@ -81,8 +82,21 @@ function generalFeedbackRecipients() {
 app.use(express.json({limit:'5mb'}));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Mini-app foydalanuvchisi faqat Telegram imzolagan initData orqali aniqlanadi
+// ("X-Telegram-Init-Data" sarlavhasi). x-telegram-id / ?uid= ga ishonilmaydi — ularni soxtalashtirish oson.
+function getTgUser(req) {
+  if (req.tgUser === undefined) {
+    const raw = req.headers['x-telegram-init-data'];
+    const r = telegramAuth.verifyInitData(raw, process.env.BOT_TOKEN);
+    // Eskirgan initData — oddiy holat (mini-app uzoq ochiq qolgan); qolganlari shubhali yoki xato
+    if (r.error && raw && r.error !== 'expired') console.warn('[auth] initData rad etildi:', r.error, req.method, req.path);
+    req.tgUser = r.user || null;
+  }
+  return req.tgUser;
+}
 function getTid(req) {
-  return req.headers['x-telegram-id'] || req.query.uid || '';
+  const u = getTgUser(req);
+  return u ? String(u.id) : '';
 }
 function isAdmin(req) {
   const tid = String(getTid(req) || '');
@@ -375,14 +389,14 @@ bot.start(async ctx => {
     db.prepare("UPDATE users SET role='admin' WHERE telegram_id=?").run(id);
     await ctx.reply('Salom, '+ctx.from.first_name+'! 👋', Markup.removeKeyboard()).catch(()=>{});
     return ctx.reply('Admin panelga xush kelibsiz!', Markup.inlineKeyboard([
-      [Markup.button.webApp('📊 Admin Panel', APP_URL+'/admin.html?uid='+id)]
+      [Markup.button.webApp('📊 Admin Panel', APP_URL+'/admin.html')]
     ]));
   }
   if (COURIER_IDS.includes(id)) {
     db.prepare("UPDATE users SET role='courier' WHERE telegram_id=?").run(id);
     await ctx.reply('Salom, '+ctx.from.first_name+'! 👋', Markup.removeKeyboard()).catch(()=>{});
     return ctx.reply('Kuryer paneliga xush kelibsiz!', Markup.inlineKeyboard([
-      [Markup.button.webApp('🛵 Buyurtmalarim', APP_URL+'/courier.html?uid='+id)]
+      [Markup.button.webApp('🛵 Buyurtmalarim', APP_URL+'/courier.html')]
     ]));
   }
 
@@ -1057,21 +1071,70 @@ app.get('/api/menu', (req, res) => {
 });
 
 app.post('/api/user', (req, res) => {
-  const { telegram_id, first_name, last_name, username } = req.body;
-  if (!telegram_id) return res.json({});
-  db.prepare('INSERT OR IGNORE INTO users (telegram_id,first_name,last_name,username) VALUES (?,?,?,?)').run(telegram_id, first_name, last_name||'', username||'');
+  const tgUser = getTgUser(req);
+  if (!tgUser) return res.status(401).json({ error: 'Unauthorized' });
+  const telegram_id = String(tgUser.id);
+  db.prepare('INSERT OR IGNORE INTO users (telegram_id,first_name,last_name,username) VALUES (?,?,?,?)').run(telegram_id, tgUser.first_name||'', tgUser.last_name||'', tgUser.username||'');
   if (ADMIN_IDS.includes(String(telegram_id))) db.prepare("UPDATE users SET role='admin' WHERE telegram_id=?").run(telegram_id);
   else if (COURIER_IDS.includes(String(telegram_id))) db.prepare("UPDATE users SET role='courier' WHERE telegram_id=?").run(telegram_id);
   res.json(db.prepare('SELECT * FROM users WHERE telegram_id=?').get(telegram_id));
 });
 
+// Savatchani DB bo'yicha tekshiradi: mahsulot ham, kategoriyasi ham faol bo'lishi shart.
+// Nom va narx mijozdan emas, DB'dan olinadi (aks holda narx/jami soxtalashtirilishi mumkin).
+// Muvaffaqiyat: {items, total}. Xato: {error} yoki {error, unavailable_ids}.
+function priceOrderItems(rawItems) {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) return { error: "Savatcha bo'sh" };
+  if (rawItems.length > 100) return { error: "Savatchada mahsulot juda ko'p" };
+  const qtyById = new Map();
+  for (const it of rawItems) {
+    const id = Number(it && it.id), qty = Number(it && it.qty);
+    if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(qty) || qty < 1 || qty > 99) {
+      return { error: "Savatchada noto'g'ri mahsulot yoki miqdor" };
+    }
+    qtyById.set(id, (qtyById.get(id) || 0) + qty);
+  }
+  const ids = Array.from(qtyById.keys());
+  const rows = db.prepare('SELECT p.id, p.name_uz, p.price, p.active, c.active AS cat_active FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.id IN ('+ids.map(() => '?').join(',')+')').all(...ids);
+  const byId = new Map(rows.map(p => [p.id, p]));
+  const unavailable = ids.filter(id => {
+    const p = byId.get(id);
+    return !p || !p.active || !p.cat_active || p.price == null || p.price < 0;
+  });
+  if (unavailable.length) {
+    const names = unavailable.map(id => {
+      const p = byId.get(id), sent = rawItems.find(i => Number(i.id) === id);
+      return (p && p.name_uz) || (sent && sent.name_uz) || ('#'+id);
+    });
+    return { error: 'Kechirasiz, hozir mavjud emas: '+names.join(', ')+'.', unavailable_ids: unavailable };
+  }
+  const items = ids.map(id => {
+    const p = byId.get(id);
+    return { id, name_uz: p.name_uz, qty: qtyById.get(id), price: p.price };
+  });
+  return { items, total: items.reduce((s, i) => s + i.price * i.qty, 0) };
+}
+
 app.post('/api/orders', async (req, res) => {
-  const { user_id, user_name, user_phone, items, total, address, lat, lng, comment, payment } = req.body;
+  const { user_name, user_phone, address, lat, lng, comment, payment } = req.body;
   let bonusUsed = Math.max(0, parseInt(req.body.bonus_used || 0) || 0);
   const deliveryType = req.body.delivery_type === 'pickup' ? 'pickup' : 'delivery';
 
+  // Buyurtma faqat Telegram mini-app orqali (imzolangan initData bilan) qabul qilinadi
+  const tgUser = getTgUser(req);
+  if (!tgUser) return res.status(401).json({ error: "Buyurtma faqat Telegram orqali beriladi. Mini-appni botdagi «🛒 Menyuni ochish» tugmasi orqali qayta oching." });
+  const user_id = String(tgUser.id);
+
   const allowed = ['cash', 'click', 'payme'];
   if (!allowed.includes(payment)) return res.status(400).json({ error: 'Invalid payment method' });
+
+  const priced = priceOrderItems(req.body.items);
+  if (priced.error) return res.status(priced.unavailable_ids ? 409 : 400).json(priced);
+  const { items, total } = priced;
+  // Savatcha ochilganidan beri narx o'zgargan bo'lsa — mijoz yangi jamini ko'rib, qayta tasdiqlasin
+  if (req.body.total != null && Number(req.body.total) !== total) {
+    return res.status(409).json({ error: "Narxlar yangilandi. Yangi jami: "+total.toLocaleString()+" so'm. Savatchani tekshirib, qayta tasdiqlang.", price_changed: true, total });
+  }
 
   // Yetkazib berish radiusi tekshiruvi (faqat delivery uchun)
   if (deliveryType === 'delivery') {
@@ -1761,6 +1824,7 @@ app.put('/api/admin/products/:id', (req, res) => {
 
 app.get('/api/courier/orders', (req, res) => {
   const tid = getTid(req);
+  if (!tid) return res.status(401).json({ error: 'Unauthorized' });
   const orders = db.prepare("SELECT * FROM orders WHERE courier_id=? AND status IN ('on_way','accepted') ORDER BY created_at DESC").all(tid);
   orders.forEach(o => { o.items = JSON.parse(o.items); });
   res.json(orders);
@@ -1768,8 +1832,11 @@ app.get('/api/courier/orders', (req, res) => {
 
 app.put('/api/courier/orders/:id', (req, res) => {
   const tid = getTid(req);
+  if (!tid) return res.status(401).json({ error: 'Unauthorized' });
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
   if (!order || order.courier_id !== tid) return res.status(403).json({ error: 'Forbidden' });
+  // Kuryer faqat "oldim" va "yetkazdim" holatlarini qo'ya oladi
+  if (!['on_way', 'delivered'].includes(req.body.status)) return res.status(400).json({ error: 'Invalid status' });
   db.prepare('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(req.body.status, req.params.id);
   notifyCustomer(db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id));
   res.json({ ok: true });

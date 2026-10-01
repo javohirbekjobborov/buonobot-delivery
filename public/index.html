@@ -279,7 +279,8 @@ const tg = window.Telegram && window.Telegram.WebApp;
 if(tg) tg.expand();
 
 const UID = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? String(tg.initDataUnsafe.user.id) : '';
-const H = {'Content-Type':'application/json','x-telegram-id':UID};
+// Server foydalanuvchini faqat Telegram imzolagan initData orqali taniydi
+const H = {'Content-Type':'application/json','X-Telegram-Init-Data':(tg && tg.initData) || ''};
 
 let cart = {}, cats = [], prods = [], selPay = 'click', userLat = null, userLng = null, deliveryType = 'delivery';
 let customerProfile = null;
@@ -543,12 +544,19 @@ fetch('/api/config').then(r=>r.json()).then(d=>{
   const ad = document.getElementById('cfg-addr'); if (ad) ad.textContent = cfg.restaurant_address;
 }).catch(()=>{});
 
-fetch('/api/menu').then(r=>r.json()).then(data=>{
-  cats = data;
-  prods = data.flatMap(c=>c.products||[]);
-  renderCats();
-  renderMenu();
-}).catch(()=>{});
+function loadMenu(cb) {
+  fetch('/api/menu').then(r=>r.json()).then(data=>{
+    cats = data;
+    prods = data.flatMap(c=>c.products||[]);
+    // Menyudan chiqib ketgan (nofaol) mahsulotlarni savatchadan olib tashlaymiz
+    Object.keys(cart).forEach(id=>{ if (!prods.find(p=>p.id===parseInt(id))) delete cart[id]; });
+    renderCats();
+    renderMenu();
+    updateUI();
+    if(cb)cb();
+  }).catch(()=>{ if(cb)cb(); });
+}
+loadMenu();
 
 loadCustomerProfile(function(){
   // URL hash #card bo'lsa karta sahifasini avtomatik ochish
@@ -556,12 +564,8 @@ loadCustomerProfile(function(){
 });
 
 if(UID) {
-  fetch('/api/user',{method:'POST',headers:H,body:JSON.stringify({
-    telegram_id:UID,
-    first_name:(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user)?tg.initDataUnsafe.user.first_name:'',
-    last_name:(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user)?tg.initDataUnsafe.user.last_name||'':'',
-    username:(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user)?tg.initDataUnsafe.user.username||'':''
-  })}).then(r=>r.json()).then(u=>{
+  // Ism/username server tomonda imzolangan initData'dan olinadi
+  fetch('/api/user',{method:'POST',headers:H}).then(r=>r.json()).then(u=>{
     if(u && u.first_name) document.getElementById('f-name').value = u.first_name + (u.last_name?' '+u.last_name:'');
   }).catch(()=>{});
 }
@@ -816,7 +820,6 @@ async function submitOrder() {
     const res = await fetch('/api/orders', {
       method: 'POST', headers: H,
       body: JSON.stringify({
-        user_id: UID || 'anon',
         user_name: name, user_phone: normPhone,
         items: items.map(i=>({id:i.id, name_uz:i.name_uz, qty:i.qty, price:i.price})),
         total: cartTotal(),
@@ -859,12 +862,21 @@ async function submitOrder() {
       openPage('pg-success');
       // Bonusni yangilash
       loadCustomerProfile();
+    } else if (data.unavailable_ids || data.price_changed) {
+      // Mahsulot tugagan yoki narx o'zgargan — menyuni yangilab, savatchani qayta ko'rsatamiz
+      btn.disabled = false; btn.textContent = '✅ Buyurtma berish';
+      (data.unavailable_ids||[]).forEach(id=>{ delete cart[id]; });
+      loadMenu(()=>{
+        closePage('pg-checkout');
+        openCart();
+        alert(data.error + (data.unavailable_ids ? "\n\nUlar savatchadan olib tashlandi." : ''));
+      });
     } else {
-      btn.disabled = false; btn.textContent = '&#9989; Buyurtma berish';
+      btn.disabled = false; btn.textContent = '✅ Buyurtma berish';
       alert('Xatolik: '+(data.error||'Qayta urinib koring'));
     }
   } catch(e) {
-    btn.disabled = false; btn.textContent = '&#9989; Buyurtma berish';
+    btn.disabled = false; btn.textContent = '✅ Buyurtma berish';
     alert('Ulanishda xatolik. Internet aloqasini tekshiring.');
   }
 }
