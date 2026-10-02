@@ -463,6 +463,22 @@ bot.action('info_location', async ctx => {
   await sendRestaurantLocation(ctx.chat.id).catch(e => console.warn('[location]', e.message));
 });
 
+// Mijoz yuborgan lokatsiya: GPS'siz berilgan oxirgi faol yetkazish buyurtmasiga biriktiriladi va
+// guruhga (kuryer biriktirilgan bo'lsa — unga ham) "Buyurtma #N" sarlavhasi bilan yuboriladi
+bot.on('location', async ctx => {
+  if (ctx.chat.type !== 'private') return;
+  const { latitude, longitude } = ctx.message.location;
+  const order = db.prepare("SELECT * FROM orders WHERE user_id=? AND delivery_type='delivery' AND (lat IS NULL OR lng IS NULL) AND status IN ('new','accepted','cooking','on_way') AND created_at >= datetime('now','-6 hours') ORDER BY id DESC LIMIT 1").get(String(ctx.from.id));
+  if (!order) return;
+  db.prepare('UPDATE orders SET lat=?, lng=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(latitude, longitude, order.id);
+  const dist = haversineKm(RESTAURANT_LAT, RESTAURANT_LNG, latitude, longitude);
+  const addr = (order.address || '-')+' · '+dist.toFixed(1)+' km'+(dist > DELIVERY_RADIUS_KM ? ' ⚠️ radiusdan tashqarida' : '');
+  const targets = orderRecipients().slice();
+  if (order.courier_id && !targets.includes(order.courier_id)) targets.push(order.courier_id);
+  targets.forEach(id => bot.telegram.sendVenue(id, latitude, longitude, '📍 Buyurtma #'+order.id+' lokatsiyasi', addr).catch(()=>{}));
+  await ctx.reply('✅ Rahmat! Lokatsiya buyurtma #'+order.id+' ga biriktirildi.', { reply_markup: { remove_keyboard: true } }).catch(()=>{});
+});
+
 // Ro'yxatdan o'tish bosqichlari (telefon → ism → familiya → yosh → jins)
 const pendingRegistration = new Map();
 const REG = { ASK_FIRST_NAME: 'first_name', ASK_LAST_NAME: 'last_name', ASK_AGE: 'age', ASK_GENDER: 'gender' };
@@ -961,6 +977,7 @@ function notifyAdmin(order) {
   t += '\n'+(order.delivery_type === 'pickup' ? "🏃 O'zi olib ketish" : "🛵 Yetkazib berish");
   if (order.comment) t += '\n💬 '+order.comment;
   if (order.address) t += '\n📍 '+order.address;
+  if (needsLocation(order)) t += "\n⚠️ GPS lokatsiya yo'q — mijozdan so'raldi";
 
   orderRecipients().forEach(id => {
     bot.telegram.sendMessage(id, t).catch(()=>{});
@@ -998,7 +1015,22 @@ function notifyCustomerNewOrder(order) {
   t += '\n⏰ <b>Taxminiy '+(isPickup ? 'tayyor bo\'lish' : 'yetkazib berish')+' vaqti: '+orderEtaText(order)+'</b>\n\n';
   t += "Holati o'zgarganda sizga xabar beramiz. Rahmat! 🍔";
 
-  bot.telegram.sendMessage(order.user_id, t, { parse_mode: 'HTML' }).catch(()=>{});
+  bot.telegram.sendMessage(order.user_id, t, { parse_mode: 'HTML' })
+    .then(() => { if (needsLocation(order)) return requestOrderLocation(order); })
+    .catch(()=>{});
+}
+
+// Yetkazish buyurtmasi GPS koordinatasiz — guruh/kuryer xaritada ko'ra olmaydi
+function needsLocation(order) {
+  return order.delivery_type !== 'pickup' && !(order.lat && order.lng);
+}
+
+// Mijozdan Telegram'ning native tugmasi orqali lokatsiya so'raymiz — bot.on('location') qabul qiladi
+function requestOrderLocation(order) {
+  return bot.telegram.sendMessage(order.user_id,
+    "📍 Kuryer sizni tezroq topishi uchun buyurtma #"+order.id+" lokatsiyasini yuboring — pastdagi tugmani bosing.\n\n"+
+    "Boshqa manzilga buyurtma bergan bo'lsangiz: 📎 → Lokatsiya orqali xaritadan nuqtani tanlab yuboring.",
+    { reply_markup: { keyboard: [[{ text: '📍 Lokatsiyani yuborish', request_location: true }]], resize_keyboard: true, one_time_keyboard: true } });
 }
 
 function notifyCourier(courierId, order) {
