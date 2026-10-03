@@ -8,6 +8,13 @@ const iiko = require('./iiko');
 const payme = require('./payme');
 const telegramAuth = require('./telegramAuth');
 
+// Hozircha yoqilgan funksiyalar. Click/Payme va bonus karta mijozga "Tez orada" bo'lib ko'rinadi;
+// yoqish uchun Railway Variables: PAYMENT_METHODS=cash,click,payme va LOYALTY_ENABLED=true
+const PAYMENT_METHODS = (process.env.PAYMENT_METHODS || 'cash').split(',').map(s => s.trim())
+  .filter(m => ['cash', 'click', 'payme'].includes(m));
+if (!PAYMENT_METHODS.length) PAYMENT_METHODS.push('cash');
+const LOYALTY_ENABLED = (process.env.LOYALTY_ENABLED || 'false').toLowerCase() === 'true';
+
 // Bonus tizimi konfiguratsiyasi
 const BONUS_PERCENT = parseFloat(process.env.BONUS_PERCENT || '5');
 const WELCOME_BONUS = parseInt(process.env.WELCOME_BONUS || '5000');
@@ -145,8 +152,8 @@ function registerCustomer(telegramId, firstName, lastName, username, phone, ageR
   db.prepare('INSERT INTO customers (telegram_id, card_number, phone, first_name, last_name, username, age_range, gender) VALUES (?,?,?,?,?,?,?,?)')
     .run(String(telegramId), cardNumber, phone||'', firstName||'', lastName||'', username||'', ageRange||null, gender||null);
 
-  // Welcome bonus
-  if (WELCOME_BONUS > 0) {
+  // Welcome bonus (bonus karta yoqilgan bo'lsa)
+  if (LOYALTY_ENABLED && WELCOME_BONUS > 0) {
     creditBonus(telegramId, WELCOME_BONUS, 'welcome', null);
   }
 
@@ -404,7 +411,11 @@ bot.start(async ctx => {
   const customer = getCustomer(id);
   if (!customer) {
     return ctx.reply(
-      '🍔 Buono Burger ga xush kelibsiz!\n\nRo\'yxatdan o\'tib, sizga maxsus karta va '+WELCOME_BONUS.toLocaleString()+" so'm sovg'a bonus beramiz!\n\n📍 Manzilimiz va xarita: /manzil\n\nIltimos telefon raqamingizni yuboring:",
+      '🍔 Buono Burger ga xush kelibsiz!\n\n'+
+      (LOYALTY_ENABLED
+        ? 'Ro\'yxatdan o\'tib, sizga maxsus karta va '+WELCOME_BONUS.toLocaleString()+" so'm sovg'a bonus beramiz!"
+        : "Buyurtma berish uchun ro'yxatdan o'ting.")+
+      "\n\n📍 Manzilimiz va xarita: /manzil\n\nIltimos telefon raqamingizni yuboring:",
       {
         reply_markup: {
           keyboard: [[{text: "📞 Telefon raqamni yuborish", request_contact: true}]],
@@ -422,14 +433,16 @@ bot.start(async ctx => {
 
 async function showCustomerHome(ctx, customer) {
   const greeting = '🍔 Buono Burger\n\n'+
-    '🎫 Karta raqami: <code>'+customer.card_number+'</code>\n'+
-    '💰 Bonus balans: <b>'+customer.bonus_balance.toLocaleString()+" so'm</b>\n\n"+
+    (LOYALTY_ENABLED
+      ? '🎫 Karta raqami: <code>'+customer.card_number+'</code>\n'+
+        '💰 Bonus balans: <b>'+customer.bonus_balance.toLocaleString()+" so'm</b>\n\n"
+      : '🎫 Bonus karta — <b>tez orada!</b>\n\n')+
     '⏰ Ish vaqti: '+WORK_HOURS;
   return ctx.reply(greeting, {
     parse_mode: 'HTML',
     reply_markup: Markup.inlineKeyboard([
       [Markup.button.webApp('🛒 Menyuni ochish', APP_URL+'/index.html'), Markup.button.callback('📍 Manzil', 'info_location')],
-      [Markup.button.webApp('🎫 Mening kartam', APP_URL+'/index.html#card'), Markup.button.callback('⭐ Baho berish', 'fb_main')]
+      [Markup.button.webApp(LOYALTY_ENABLED ? '🎫 Mening kartam' : '🎫 Bonus karta (tez orada)', APP_URL+'/index.html#card'), Markup.button.callback('⭐ Baho berish', 'fb_main')]
     ]).reply_markup
   });
 }
@@ -576,9 +589,11 @@ bot.action(/^reg_gender_(male|female)$/, async ctx => {
     '📞 Telefon: '+state.phone+'\n'+
     "🎂 Yosh oralig'i: "+state.age_range+'\n'+
     '⚧ Jinsi: '+genderLabel+'\n'+
-    '🎫 Karta raqami: <code>'+customer.card_number+'</code>\n'+
-    "🎁 Sovg'a bonus: <b>"+WELCOME_BONUS.toLocaleString()+" so'm</b>\n"+
-    '📅 Bonus muddati: '+BONUS_TTL_DAYS+' kun\n\n'+
+    (LOYALTY_ENABLED
+      ? '🎫 Karta raqami: <code>'+customer.card_number+'</code>\n'+
+        "🎁 Sovg'a bonus: <b>"+WELCOME_BONUS.toLocaleString()+" so'm</b>\n"+
+        '📅 Bonus muddati: '+BONUS_TTL_DAYS+' kun\n\n'
+      : '\n')+
     "Ma'lumotlaringiz iiko mijozlar bazasiga saqlandi.",
     { parse_mode: 'HTML' }
   );
@@ -1060,8 +1075,8 @@ function notifyCustomer(order) {
     msg += "\n\n💳 To'lov: "+paymentLabel(order);
   }
 
-  // Yetkazilganda — cashback hisoblash
-  if (order.status === 'delivered' && order.user_id && order.user_id !== 'anon' && !order.cashback_credited) {
+  // Yetkazilganda — cashback hisoblash (bonus karta yoqilgan bo'lsa)
+  if (LOYALTY_ENABLED && order.status === 'delivered' && order.user_id && order.user_id !== 'anon' && !order.cashback_credited) {
     const eligible = order.payment === 'cash' || order.payment_status === 'paid';
     if (eligible) {
       const cashback = bonusEarnedFor(order);
@@ -1157,8 +1172,12 @@ app.post('/api/orders', async (req, res) => {
   if (!tgUser) return res.status(401).json({ error: "Buyurtma faqat Telegram orqali beriladi. Mini-appni botdagi «🛒 Menyuni ochish» tugmasi orqali qayta oching." });
   const user_id = String(tgUser.id);
 
-  const allowed = ['cash', 'click', 'payme'];
-  if (!allowed.includes(payment)) return res.status(400).json({ error: 'Invalid payment method' });
+  if (!PAYMENT_METHODS.includes(payment)) {
+    return res.status(400).json({ error: ['click', 'payme'].includes(payment)
+      ? "Click va Payme orqali to'lov tez orada qo'shiladi. Hozircha naqd to'lang."
+      : 'Invalid payment method' });
+  }
+  if (bonusUsed > 0 && !LOYALTY_ENABLED) return res.status(400).json({ error: 'Bonus karta tez orada ishga tushadi.' });
 
   const priced = priceOrderItems(req.body.items);
   if (priced.error) return res.status(priced.unavailable_ids ? 409 : 400).json(priced);
@@ -1506,7 +1525,9 @@ app.get('/api/config', (req, res) => {
     bonus_percent: BONUS_PERCENT,
     welcome_bonus: WELCOME_BONUS,
     bonus_ttl_days: BONUS_TTL_DAYS,
-    max_bonus_use_percent: MAX_BONUS_USE_PERCENT
+    max_bonus_use_percent: MAX_BONUS_USE_PERCENT,
+    payment_methods: PAYMENT_METHODS,
+    loyalty_enabled: LOYALTY_ENABLED
   });
 });
 
