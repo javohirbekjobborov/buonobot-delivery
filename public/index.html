@@ -13,8 +13,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f8fafc;
 .nav-item.active{color:#e63946}
 .nav-item .nav-badge{position:absolute;top:4px;right:18px;background:#e63946;color:#fff;border-radius:10px;min-width:16px;height:16px;font-size:9px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 4px}
 .nav-item .nav-badge.show{display:inline-flex}
+/* Suzuvchi "Savatcha" tugmasi — pastki nav (≈52px) ustida turadi */
 .bottom-bar{position:fixed;left:12px;right:12px;bottom:72px;z-index:55;display:none}
 .bottom-bar.show{display:block}
+.bottom-bar .checkout-btn{box-shadow:0 6px 16px rgba(230,57,70,.35)}
+body.has-cart{padding-bottom:136px}
 .hdr{background:linear-gradient(135deg,#e63946,#c1121f);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between}
 .hdr h1{font-size:18px;font-weight:800}
 .cart-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px}
@@ -35,13 +38,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f8fafc;
 .in-cart{display:flex;align-items:center;justify-content:space-between;margin-top:7px}
 .qty-btn{width:28px;height:28px;border-radius:8px;border:none;background:#f1f5f9;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .qty-num{font-weight:800;font-size:14px}
-.bottom-bar{position:fixed;bottom:0;left:0;right:0;padding:10px 16px;background:#fff;border-top:1px solid #e2e8f0;z-index:50}
 .checkout-btn{width:100%;padding:14px;background:#e63946;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:space-between}
 .checkout-btn:disabled{background:#94a3b8;cursor:default}
 /* CART PAGE */
 .page{display:none;position:fixed;inset:0;background:#f8fafc;overflow-y:auto;z-index:100}
 .page.show{display:block}
-.tab-page{display:none;position:fixed;left:0;right:0;top:0;bottom:64px;background:#f8fafc;overflow-y:auto;z-index:55}
+.tab-page{display:none;position:fixed;inset:0;padding-bottom:72px;background:#f8fafc;overflow-y:auto;z-index:56}
 .tab-page.show{display:block}
 .page-hdr{background:linear-gradient(135deg,#e63946,#c1121f);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10}
 .back-btn{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0}
@@ -59,8 +61,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f8fafc;
 /* CHECKOUT */
 .form-box{background:#fff;margin:10px 16px;border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .form-box h3{font-size:14px;font-weight:700;margin-bottom:10px;color:#64748b}
-.inp{width:100%;padding:11px 13px;border:2px solid #e2e8f0;border-radius:10px;font-size:14px;outline:none;font-family:inherit;transition:.15s}
-.inp:focus{border-color:#e63946}
+.inp{width:100%;padding:11px 13px;border:2px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none;font-family:inherit;transition:.15s;color:#0f172a;background:#fff;caret-color:#e63946}
+.inp:focus{border-color:#e63946;box-shadow:0 0 0 3px rgba(230,57,70,.15)}
+.inp::placeholder,.phone-wrap input::placeholder{color:#b4bfcc}
 .inp+.inp{margin-top:8px}
 textarea.inp{min-height:60px;resize:none}
 /* Payment options */
@@ -74,9 +77,9 @@ textarea.inp{min-height:60px;resize:none}
 .pay-info.show{display:block}
 /* Telefon +998 prefiks */
 .phone-wrap{display:flex;align-items:center;border:2px solid #e2e8f0;border-radius:10px;overflow:hidden;transition:.15s}
-.phone-wrap:focus-within{border-color:#e63946}
-.phone-wrap .pfx{padding:11px 4px 11px 13px;color:#334155;font-weight:700;font-size:14px;background:#f1f5f9;white-space:nowrap;align-self:stretch;display:flex;align-items:center}
-.phone-wrap input{border:none;flex:1;padding:11px 13px;font-size:14px;outline:none;font-family:inherit;background:transparent;min-width:0}
+.phone-wrap:focus-within{border-color:#e63946;box-shadow:0 0 0 3px rgba(230,57,70,.15)}
+.phone-wrap .pfx{padding:11px 4px 11px 13px;color:#334155;font-weight:700;font-size:16px;background:#f1f5f9;white-space:nowrap;align-self:stretch;display:flex;align-items:center}
+.phone-wrap input{border:none;flex:1;padding:11px 13px;font-size:16px;outline:none;font-family:inherit;background:transparent;min-width:0;color:#0f172a;caret-color:#e63946}
 /* Buyurtma turi tugmalari */
 .type-opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .type-opt{border:2px solid #e2e8f0;border-radius:12px;padding:14px 8px;text-align:center;cursor:pointer;background:#fff;font-weight:800;font-size:13px;color:#334155;transition:.15s;font-family:inherit}
@@ -128,12 +131,12 @@ textarea.inp{min-height:60px;resize:none}
   </div>
   <div class="form-box">
     <h3>&#128100; Kontakt ma'lumotlari</h3>
-    <input class="inp" id="f-name" placeholder="Ismingiz" type="text" style="margin-bottom:8px">
-    <div class="phone-wrap"><span class="pfx">&#127482;&#127487; +998</span><input id="f-phone" placeholder="90 123 45 67" type="tel" inputmode="numeric"></div>
+    <input class="inp" id="f-name" placeholder="Ismingiz" type="text" enterkeyhint="done" style="margin-bottom:8px">
+    <div class="phone-wrap"><label class="pfx" for="f-phone">&#127482;&#127487; +998</label><input id="f-phone" placeholder="90 123 45 67" type="tel" inputmode="numeric"></div>
   </div>
   <div class="form-box" id="addr-box">
     <h3>&#128205; Yetkazish manzili <span style="color:#e63946">*</span></h3>
-    <input class="inp" id="f-addr" placeholder="Ko'cha nomi, uy va kvartira raqami — to'ldirilishi shart" type="text">
+    <input class="inp" id="f-addr" placeholder="Ko'cha nomi, uy va kvartira raqami — to'ldirilishi shart" type="text" enterkeyhint="done">
     <div style="font-size:11px;color:#94a3b8;margin-top:6px;line-height:1.4">&#9888;&#65039; Ko'cha nomi va uy/kvartira raqamini to'liq yozing — bu maydon to'ldirilishi shart.</div>
     <button class="loc-btn" id="loc-btn" onclick="getLocation()">&#128205; Joylashuvimni aniqlash (GPS)</button>
     <div id="loc-info" style="margin-top:8px;font-size:12px;color:#64748b;line-height:1.5">
@@ -281,6 +284,33 @@ if(tg) tg.expand();
 const LM = (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('8.0') && tg.LocationManager) || null;
 if (LM) { try { LM.init(); } catch (e) {} }
 
+// iOS'da input'dan tashqariga bosilganda klaviatura o'zi yopilmaydi, raqam klaviaturasida esa
+// "Tayyor" tugmasi yo'q — shuning uchun bo'sh joyga bosish yoki Enter klaviaturani yopadi
+function hideKeyboard() {
+  const a = document.activeElement;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) a.blur();
+  if (tg && tg.hideKeyboard && tg.isVersionAtLeast && tg.isVersionAtLeast('9.1')) { try { tg.hideKeyboard(); } catch (e) {} }
+}
+document.addEventListener('touchstart', e => {
+  const a = document.activeElement;
+  if (!a || (a.tagName !== 'INPUT' && a.tagName !== 'TEXTAREA')) return;
+  if (e.target.closest && e.target.closest('input,textarea,.phone-wrap')) return;
+  hideKeyboard();
+}, { passive: true });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); hideKeyboard(); }
+});
+
+// Server vaqtlari UTC ("YYYY-MM-DD HH:MM:SS") — Toshkent vaqtida (UTC+5) ko'rsatamiz
+function fmtTime(s) {
+  const t = Date.parse(String(s || '').split('.')[0].replace(' ', 'T') + 'Z');
+  if (isNaN(t)) return '';
+  return new Date(t + 5*3600*1000).toISOString().replace('T', ' ').slice(0, 16);
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 const UID = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? String(tg.initDataUnsafe.user.id) : '';
 // Server foydalanuvchini faqat Telegram imzolagan initData orqali taniydi
 const H = {'Content-Type':'application/json','X-Telegram-Init-Data':(tg && tg.initData) || ''};
@@ -350,12 +380,16 @@ function renderOrders() {
     updateOrdersBadge(active);
     body.innerHTML = orders.map(o=>{
       const s = ST[o.status] || {label:o.status,cls:'#94a3b8',bg:'#f1f5f9'};
-      const items = (o.items||[]).map(i=>i.name_uz+' ×'+i.qty).join(', ');
-      const date = (o.created_at||'').replace('T',' ').slice(0,16);
-      return '<div style="background:#fff;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)">'+
+      const items = (o.items||[]).map(i=>esc(i.name_uz)+' ×'+i.qty).join(', ');
+      const date = fmtTime(o.created_at);
+      // Karta bosilganda ochiladi: buyurtma tarkibi va tafsilotlari
+      return '<div onclick="toggleOrder('+o.id+')" style="background:#fff;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
           '<div style="font-weight:800;font-size:14px">&#128230; Buyurtma #'+o.id+'</div>'+
-          '<span style="background:'+s.bg+';color:'+s.cls+';padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700">'+s.label+'</span>'+
+          '<div style="display:flex;align-items:center;gap:6px">'+
+            '<span style="background:'+s.bg+';color:'+s.cls+';padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700">'+s.label+'</span>'+
+            '<span id="oc-'+o.id+'" style="display:inline-block;color:#94a3b8;font-size:13px;transition:transform .2s">&#9660;</span>'+
+          '</div>'+
         '</div>'+
         '<div style="font-size:12px;color:#64748b;margin-bottom:6px">'+items+'</div>'+
         '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">'+
@@ -363,11 +397,56 @@ function renderOrders() {
           '<span style="font-weight:800;color:#e63946">'+(o.total||0).toLocaleString()+" so'm</span>"+
         '</div>'+
         (o.bonus_used?'<div style="font-size:11px;color:#16a34a;margin-top:4px">&#127873; '+o.bonus_used.toLocaleString()+" so'm bonus ishlatildi</div>":'')+
+        '<div id="od-'+o.id+'" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed #e2e8f0">'+orderDetailsHTML(o)+'</div>'+
       '</div>';
     }).join('');
   }).catch(()=>{
     body.innerHTML = '<div class="empty"><div class="icon">&#9888;</div><p>Xatolik</p></div>';
   });
+}
+
+function toggleOrder(id) {
+  const d = document.getElementById('od-'+id), ch = document.getElementById('oc-'+id);
+  if (!d) return;
+  const open = d.style.display === 'none';
+  d.style.display = open ? 'block' : 'none';
+  if (ch) ch.style.transform = open ? 'rotate(180deg)' : '';
+}
+
+function orderPayText(o) {
+  const m = o.payment === 'cash' ? '&#128181; Naqd' : o.payment === 'click' ? '&#128241; Click' : '&#128179; Payme';
+  if (o.payment === 'cash') return m + " (yetkazganda to'lanadi)";
+  if (o.payment_status === 'paid') return m + " — to'langan &#9989;";
+  if (o.payment_status === 'rejected') return m + " — to'lov amalga oshmadi";
+  return m + " — to'lov kutilmoqda";
+}
+
+// Buyurtma tarkibi (menyuda bo'lsa — rasmi bilan), summa, to'lov, turi, manzil, izoh, vaqt
+function orderDetailsHTML(o) {
+  const row = (k, v) => '<div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:3px 0">'+
+    '<span style="color:#64748b;white-space:nowrap">'+k+'</span><span style="text-align:right">'+v+'</span></div>';
+  let h = (o.items||[]).map(i=>{
+    const p = prods.find(x=>x.id===i.id);
+    const img = p && p.image ? '<img src="'+esc(p.image)+'" style="width:40px;height:40px;border-radius:8px;object-fit:cover;flex-shrink:0;background:#f1f5f9" onerror="this.style.display=\'none\'">' : '';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9">'+img+
+      '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700">'+esc(i.name_uz)+'</div>'+
+      '<div style="font-size:12px;color:#64748b">'+(i.price||0).toLocaleString()+" so'm × "+i.qty+'</div></div>'+
+      '<div style="font-size:13px;font-weight:800;white-space:nowrap">'+((i.price||0)*i.qty).toLocaleString()+" so'm</div></div>";
+  }).join('');
+  const total = o.total || 0, bonus = o.bonus_used || 0;
+  h += '<div style="margin-top:8px">';
+  if (bonus > 0) {
+    h += row('Mahsulotlar', total.toLocaleString()+" so'm") + row('&#128184; Bonus', '−'+bonus.toLocaleString()+" so'm") +
+      row("<b>To'lanadi</b>", '<b>'+Math.max(0, total-bonus).toLocaleString()+" so'm</b>");
+  } else {
+    h += row('<b>Jami</b>', '<b>'+total.toLocaleString()+" so'm</b>");
+  }
+  h += row("To'lov", orderPayText(o));
+  h += row('Turi', o.delivery_type === 'pickup' ? "&#127939; O'zi olib ketish" : '&#128757; Yetkazib berish');
+  if (o.delivery_type !== 'pickup' && o.address) h += row('Manzil', esc(o.address));
+  if (o.comment) h += row('Izoh', esc(o.comment));
+  h += row('Vaqti', fmtTime(o.created_at));
+  return h + '</div>';
 }
 
 function updateOrdersBadge(n) {
@@ -433,7 +512,7 @@ function renderCard() {
       ttl_expired: "⏳ Muddati tugadi"
     };
     const label = reasons[t.reason] || t.reason;
-    const date = (t.created_at || '').split('.')[0].replace('T',' ').slice(0,16);
+    const date = fmtTime(t.created_at);
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9"><div><div style="font-size:13px;font-weight:600">'+label+'</div><div style="font-size:11px;color:#64748b">'+date+'</div></div><div style="font-weight:800;color:'+color+'">'+sign+t.amount.toLocaleString()+" so'm</div></div>";
   }).join('') || '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:16px">Tranzaksiyalar yo\'q</div>';
 
@@ -661,6 +740,8 @@ function updateUI() {
   // Bottom-bar (floating Savatcha) — faqat mahsulot bo'lsa ko'rinadi
   const bar = document.querySelector('#pg-main .bottom-bar');
   if (bar) bar.classList.toggle('show', cnt > 0);
+  // Menyuning oxirgi mahsulotlari suzuvchi tugma ortida qolmasin
+  document.body.classList.toggle('has-cart', cnt > 0);
 }
 
 // Pages
