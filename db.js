@@ -117,6 +117,12 @@ try { db.exec("CREATE INDEX IF NOT EXISTS idx_cats_iiko ON categories(iiko_group
 try { db.exec("ALTER TABLE orders ADD COLUMN feedback_sent INTEGER DEFAULT 0"); } catch(e) {}
 
 try { db.exec("ALTER TABLE orders ADD COLUMN delivery_type TEXT DEFAULT 'delivery'"); } catch(e) {}
+// Yetkazib berish narxi (so'm): NULL — hisoblanmagan; pending=1 — lokatsiya kelgach hisoblanadi
+try { db.exec("ALTER TABLE orders ADD COLUMN delivery_fee INTEGER"); } catch(e) {}
+try { db.exec("ALTER TABLE orders ADD COLUMN delivery_fee_pending INTEGER DEFAULT 0"); } catch(e) {}
+// Marshrut (yo'l) masofasi, metr; approx=1 — OSRM javob bermagan, havo masofasi × koeffitsient
+try { db.exec("ALTER TABLE orders ADD COLUMN delivery_meters INTEGER"); } catch(e) {}
+try { db.exec("ALTER TABLE orders ADD COLUMN delivery_approx INTEGER DEFAULT 0"); } catch(e) {}
 
 try { db.exec("ALTER TABLE customers ADD COLUMN age_range TEXT"); } catch(e) {}
 try { db.exec("ALTER TABLE customers ADD COLUMN gender TEXT"); } catch(e) {}

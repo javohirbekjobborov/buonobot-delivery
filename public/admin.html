@@ -365,6 +365,16 @@ function renderOrders(s){
   if(ob)ob.innerHTML=list.length?rows(list):'<div class="empty">Buyurtma yoq</div>';
 }
 
+// Mijoz to'laydigan summa: mahsulotlar − bonus + yetkazib berish (yo'l masofasi bo'yicha)
+function payable(o){return Math.max(0,(o.total||0)-(o.bonus_used||0))+(o.delivery_fee||0);}
+function feeRow(o){
+  if(o.delivery_type==='pickup')return '';
+  var km=o.delivery_meters!=null?' ('+(o.delivery_meters<1000?o.delivery_meters+' m':(Math.round(o.delivery_meters/100)/10)+' km')+(o.delivery_approx?', taxminiy':'')+')':'';
+  if(o.delivery_fee!=null)return '<div class="ir"><span>&#128666; Yetkazib berish'+km+'</span><span>'+(o.delivery_fee?o.delivery_fee.toLocaleString()+" so'm":'bepul')+'</span></div>';
+  if(o.delivery_fee_pending)return '<div class="ir"><span>&#128666; Yetkazib berish</span><span>lokatsiya kutilmoqda</span></div>';
+  return '';
+}
+
 function rows(list){
   return list.map(function(o){
     return '<div class="tr" onclick="openM('+o.id+')">'+
@@ -372,7 +382,7 @@ function rows(list){
       '<div><div style="font-weight:700;font-size:12px">'+(o.user_name||'?')+'</div>'+
       '<div style="font-size:10px;color:#64748b;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:300px">'+
         o.items.map(function(i){return i.name_uz+'x'+i.qty;}).join(', ')+'</div></div>'+
-      '<span>'+(o.total||0).toLocaleString()+" so'm</span>"+
+      '<span>'+payable(o).toLocaleString()+" so'm</span>"+
       '<span style="color:#64748b">'+(PL[o.payment]||o.payment)+'</span>'+
       '<span class="sp '+(SC[o.status]||'s-new')+'">'+(SL[o.status]||o.status)+'</span>'+
       '<span style="font-size:10px;color:#64748b">'+ago(o.created_at)+'</span>'+
@@ -467,7 +477,8 @@ function openM(id){
   el('modal').style.display='flex';
   var iH=o.items.map(function(i){
     return '<div class="ir"><span>'+i.name_uz+' x '+i.qty+'</span><span>'+(i.price*i.qty).toLocaleString()+" so'm</span></div>";
-  }).join('')+'<div class="ir"><span>Jami</span><span style="color:#e63946">'+(o.total||0).toLocaleString()+" so'm</span></div>";
+  }).join('')+feeRow(o)+(o.bonus_used?'<div class="ir"><span>&#128184; Bonus</span><span>−'+o.bonus_used.toLocaleString()+" so'm</span></div>":'')+
+    '<div class="ir"><span>Jami to\'lov</span><span style="color:#e63946">'+payable(o).toLocaleString()+" so'm"+(o.delivery_fee_pending?' + yetkazib berish':'')+'</span></div>';
   var cOpts='<option value="">-- Tanlang --</option>';
   couriers.forEach(function(c){
     cOpts+='<option value="'+c.telegram_id+'"'+(o.courier_id===c.telegram_id?' selected':'')+'>'+c.first_name+' '+(c.last_name||'')+'</option>';
@@ -516,7 +527,7 @@ function buildMap(){
   }
   setTimeout(function(){fmap.invalidateSize();},200);
   orders.filter(function(o){return ['new','accepted','cooking','on_way'].indexOf(o.status)>=0&&o.lat&&o.lng;}).forEach(function(o){
-    L.marker([o.lat,o.lng]).addTo(fmap).bindPopup('#'+o.id+' '+(o.user_name||'')+'<br>'+(SL[o.status]||'')+'<br>'+(o.total||0).toLocaleString()+" so'm");
+    L.marker([o.lat,o.lng]).addTo(fmap).bindPopup('#'+o.id+' '+(o.user_name||'')+'<br>'+(SL[o.status]||'')+'<br>'+payable(o).toLocaleString()+" so'm");
   });
 }
 

@@ -145,7 +145,7 @@ textarea.inp{min-height:60px;resize:none}
     <button class="loc-btn" id="loc-btn" onclick="getLocation()">&#128205; Joylashuvimni aniqlash (GPS)</button>
     <div id="loc-info" style="margin-top:8px;font-size:12px;color:#64748b;line-height:1.5">
       &#9201; <b>Taxminiy yetkazib berish: 30–60 daqiqa</b><br>
-      &#128666; Radius: <b id="cfg-radius">3 km</b> &middot; &#127828; <span id="cfg-addr">Yunusobod, Gullola 13</span>
+      &#128666; Yetkazib berish narxi (yo'l bo'yicha): <span id="cfg-fees">200 m gacha bepul · 1 km gacha 7,000 · 3 km gacha 12,000 · 5 km gacha 15,000 so'm</span>
     </div>
   </div>
   <div class="form-box" id="pickup-box" style="display:none">
@@ -197,6 +197,10 @@ textarea.inp{min-height:60px;resize:none}
   <div class="form-box">
     <h3>&#128172; Izoh (ixtiyoriy)</h3>
     <textarea class="inp" id="f-comment" placeholder="Qo'shimcha xohishlar..."></textarea>
+  </div>
+  <div class="form-box" id="sum-box">
+    <h3>&#129534; Hisob</h3>
+    <div id="sum-body"></div>
   </div>
   <div style="padding:0 16px 20px">
     <button class="submit-btn" id="submit-btn" onclick="submitOrder()">&#9989; Buyurtma berish</button>
@@ -319,7 +323,7 @@ const UID = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? String(tg.init
 // Server foydalanuvchini faqat Telegram imzolagan initData orqali taniydi
 const H = {'Content-Type':'application/json','X-Telegram-Init-Data':(tg && tg.initData) || ''};
 
-let cart = {}, cats = [], prods = [], selPay = 'cash', userLat = null, userLng = null, deliveryType = 'delivery';
+let cart = {}, cats = [], prods = [], selPay = 'cash', userLat = null, userLng = null, userQuote = null, deliveryType = 'delivery';
 let customerProfile = null;
 
 function loadCustomerProfile(cb) {
@@ -398,7 +402,7 @@ function renderOrders() {
         '<div style="font-size:12px;color:#64748b;margin-bottom:6px">'+items+'</div>'+
         '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">'+
           '<span style="color:#64748b">'+date+'</span>'+
-          '<span style="font-weight:800;color:#e63946">'+(o.total||0).toLocaleString()+" so'm</span>"+
+          '<span style="font-weight:800;color:#e63946">'+orderPayable(o).toLocaleString()+" so'm</span>"+
         '</div>'+
         (o.bonus_used?'<div style="font-size:11px;color:#16a34a;margin-top:4px">&#127873; '+o.bonus_used.toLocaleString()+" so'm bonus ishlatildi</div>":'')+
         '<div id="od-'+o.id+'" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed #e2e8f0">'+orderDetailsHTML(o)+'</div>'+
@@ -415,6 +419,11 @@ function toggleOrder(id) {
   const open = d.style.display === 'none';
   d.style.display = open ? 'block' : 'none';
   if (ch) ch.style.transform = open ? 'rotate(180deg)' : '';
+}
+
+// Mijoz to'laydigan summa: mahsulotlar − bonus + yetkazib berish
+function orderPayable(o) {
+  return Math.max(0, (o.total||0) - (o.bonus_used||0)) + (o.delivery_fee||0);
 }
 
 function orderPayText(o) {
@@ -438,10 +447,15 @@ function orderDetailsHTML(o) {
       '<div style="font-size:13px;font-weight:800;white-space:nowrap">'+((i.price||0)*i.qty).toLocaleString()+" so'm</div></div>";
   }).join('');
   const total = o.total || 0, bonus = o.bonus_used || 0;
+  const isDelivery = o.delivery_type !== 'pickup';
+  const hasFee = isDelivery && o.delivery_fee != null, feePending = isDelivery && o.delivery_fee == null && o.delivery_fee_pending;
   h += '<div style="margin-top:8px">';
-  if (bonus > 0) {
-    h += row('Mahsulotlar', total.toLocaleString()+" so'm") + row('&#128184; Bonus', '−'+bonus.toLocaleString()+" so'm") +
-      row("<b>To'lanadi</b>", '<b>'+Math.max(0, total-bonus).toLocaleString()+" so'm</b>");
+  if (bonus > 0 || hasFee || feePending) {
+    h += row('Mahsulotlar', total.toLocaleString()+" so'm");
+    if (bonus > 0) h += row('&#128184; Bonus', '−'+bonus.toLocaleString()+" so'm");
+    if (hasFee) h += row('&#128666; Yetkazib berish'+(o.delivery_meters != null ? ' ('+fmtDist(o.delivery_meters)+')' : ''), o.delivery_fee ? o.delivery_fee.toLocaleString()+" so'm" : 'bepul');
+    if (feePending) h += row('&#128666; Yetkazib berish', 'lokatsiya kutilmoqda');
+    h += row("<b>To'lanadi</b>", '<b>'+orderPayable(o).toLocaleString()+" so'm</b>"+(feePending ? ' + yetkazib berish' : ''));
   } else {
     h += row('<b>Jami</b>', '<b>'+total.toLocaleString()+" so'm</b>");
   }
@@ -573,10 +587,12 @@ function onBonusToggle() {
     document.getElementById('bonus-amount').value = 0;
     document.getElementById('bonus-amount-label').textContent = "0 so'm";
   }
+  renderSummary();
 }
 function onBonusInput() {
   const v = parseInt(document.getElementById('bonus-amount').value) || 0;
   document.getElementById('bonus-amount-label').textContent = v.toLocaleString()+" so'm";
+  renderSummary();
 }
 function getSelectedBonus() {
   if (!cfg.loyalty_enabled) return 0;
@@ -642,8 +658,7 @@ function openMapApp(which) {
 
 fetch('/api/config').then(r=>r.json()).then(d=>{
   cfg = Object.assign(cfg, d);
-  const rad = document.getElementById('cfg-radius'); if (rad) rad.textContent = cfg.delivery_radius_km + ' km';
-  const ad = document.getElementById('cfg-addr'); if (ad) ad.textContent = cfg.restaurant_address;
+  const fees = document.getElementById('cfg-fees'); if (fees) fees.textContent = feeTariffText();
   // To'lov usullari va bonus karta holati config bilan keladi — ochiq sahifalarni yangilaymiz
   configurePayments();
   if (document.getElementById('pg-card').classList.contains('show')) renderCard();
@@ -822,6 +837,35 @@ function openCheckout() {
   openPage('pg-checkout');
   if (!customerProfile) loadCustomerProfile(configureBonusBox);
   else configureBonusBox();
+  renderSummary();
+}
+
+// Yetkazib berish narxi — yo'l (marshrut) masofasi bo'yicha, server /api/delivery/quote hisoblaydi
+function fmtDist(m) { return m < 1000 ? Math.round(m)+' m' : (Math.round(m/100)/10)+' km'; }
+function feeTariffText() {
+  return (cfg.delivery_fees || []).map(t => fmtDist(t.upTo)+' gacha '+(t.fee ? t.fee.toLocaleString() : 'bepul')).join(' · ')+" so'm";
+}
+// Checkout pastidagi hisob: mahsulotlar, yetkazib berish, bonus, jami
+function renderSummary() {
+  const body = document.getElementById('sum-body');
+  if (!body) return;
+  const row = (k, v, strong) => '<div style="display:flex;justify-content:space-between;gap:10px;font-size:'+(strong?'15':'13')+'px;padding:3px 0'+(strong?';font-weight:800':'')+'">'+
+    '<span style="color:'+(strong?'#1e293b':'#64748b')+'">'+k+'</span><span style="text-align:right">'+v+'</span></div>';
+  const total = cartTotal(), bonus = getSelectedBonus(), isPickup = deliveryType === 'pickup';
+  let fee = 0, h = row('Mahsulotlar', total.toLocaleString()+" so'm"), pendingFee = false;
+  if (!isPickup) {
+    if (userQuote) {
+      fee = userQuote.fee;
+      h += row('&#128666; Yetkazib berish ('+fmtDist(userQuote.meters)+')', fee ? fee.toLocaleString()+" so'm" : '<b style="color:#16a34a">bepul</b>');
+    } else {
+      pendingFee = true;
+      h += row('&#128666; Yetkazib berish', userLat !== null ? 'buyurtmada hisoblanadi' : 'lokatsiyani yuboring');
+    }
+  }
+  if (bonus > 0) h += row('&#128184; Bonus', '−'+bonus.toLocaleString()+" so'm");
+  h += '<div style="border-top:1px dashed #e2e8f0;margin-top:6px;padding-top:6px">'+
+    row('Jami', (Math.max(0, total - bonus) + fee).toLocaleString()+" so'm"+(pendingFee ? ' + yetkazib berish' : ''), true)+'</div>';
+  body.innerHTML = h;
 }
 
 function configureDeliveryType() {
@@ -911,19 +955,38 @@ function browserLocation() {
   );
 }
 function onLocation(lat, lng) {
-  const dist = haversineKm(cfg.restaurant_lat, cfg.restaurant_lng, lat, lng);
-  if (dist > cfg.delivery_radius_km) {
+  const air = haversineKm(cfg.restaurant_lat, cfg.restaurant_lng, lat, lng);
+  // Havo masofasi chegaradan katta bo'lsa — yo'l albatta uzunroq, serverga so'ramaymiz
+  if (air > cfg.delivery_radius_km) {
     locationFailed();
-    alert("Manzilingiz "+dist.toFixed(1)+" km uzoqlikda.\nBizning yetkazib berish radiusimiz "+cfg.delivery_radius_km+" km.\n\nO'zi olib ketishni tanlashingiz mumkin.");
+    alert("Manzilingiz "+air.toFixed(1)+" km uzoqlikda.\nYetkazib berish "+cfg.delivery_radius_km+" km gacha (yo'l bo'yicha).\n\nO'zi olib ketishni tanlashingiz mumkin.");
     return;
   }
-  userLat = lat;
-  userLng = lng;
-  setLocBtn('&#9989; Joylashuv aniqlandi! ('+dist.toFixed(1)+' km)', true);
+  userLat = lat; userLng = lng; userQuote = null;
+  setLocBtn('&#128205; Narx hisoblanmoqda...', true);
+  renderSummary();
+  fetch('/api/delivery/quote?lat='+lat+'&lng='+lng, {headers: H}).then(r => r.json()).then(q => {
+    if (userLat !== lat || userLng !== lng) return;  // bu orada boshqa lokatsiya olingan
+    if (q.out_of_range) {
+      locationFailed();
+      alert("Manzilingizgacha yo'l bo'yicha "+fmtDist(q.meters)+".\nYetkazib berish "+fmtDist(q.max_meters)+" gacha.\n\nO'zi olib ketishni tanlashingiz mumkin.");
+      return;
+    }
+    if (q.fee == null) throw new Error('no fee');
+    userQuote = q;
+    setLocBtn('&#9989; Joylashuv aniqlandi · '+fmtDist(q.meters)+' · &#128666; '+(q.fee ? q.fee.toLocaleString()+" so'm" : 'bepul'), true);
+    renderSummary();
+  }).catch(() => {
+    // Narxni hozir olib bo'lmadi — lokatsiya saqlanadi, narxni server buyurtmada hisoblaydi
+    if (userLat !== lat || userLng !== lng) return;
+    setLocBtn('&#9989; Joylashuv aniqlandi', true);
+    renderSummary();
+  });
 }
 function locationFailed(msg) {
-  userLat = null; userLng = null;
+  userLat = null; userLng = null; userQuote = null;
   setLocBtn('&#128205; Joylashuvimni aniqlash (GPS)', false);
+  renderSummary();
   if (msg) alert('📍 ' + msg + "\n\nYoki manzilni to'liq yozing — buyurtmadan so'ng bot lokatsiyani so'raydi.");
 }
 // Telegram'ning native tasdiqlash oynasi (6.2+), bo'lmasa brauzer confirm()
@@ -969,7 +1032,7 @@ async function submitOrder() {
 
   // GPS'siz yetkazish — kuryer manzilni topishi qiyin; mijozga eslatamiz (majburiy emas)
   if(!isPickup && userLat === null) {
-    const goOn = await askConfirm("📍 GPS lokatsiya yuborilmadi. Kuryer sizni tezroq topishi uchun «Joylashuvimni aniqlash» tugmasini bosing.\n\nLokatsiyasiz davom etasizmi? (bot keyin lokatsiyani so'raydi)");
+    const goOn = await askConfirm("📍 GPS lokatsiya yuborilmadi. Yetkazib berish narxi yo'l masofasiga qarab hisoblanadi — «Joylashuvimni aniqlash» tugmasini bosing.\n\nLokatsiyasiz davom etasizmi? (narx lokatsiya yuborilgach aniqlanadi)");
     if(!goOn) { document.getElementById('loc-btn').scrollIntoView({behavior:'smooth', block:'center'}); return; }
   }
 
@@ -1018,8 +1081,11 @@ async function submitOrder() {
       } else {
         msg = '&#9201; <b>Taxminiy yetkazib berish: '+(data.eta_text || '30–60 daqiqa')+'</b>';
         msg += '<br><br>Kuryerimiz tez orada yetib boradi. &#128757;';
+        if (data.delivery_fee != null) msg += '<br><br>&#128666; Yetkazib berish: <b>'+(data.delivery_fee ? data.delivery_fee.toLocaleString()+" so'm" : 'bepul')+'</b>';
+        else if (data.delivery_fee_pending) msg += "<br><br>&#128666; Yetkazib berish narxi lokatsiya yuborilgach hisoblanadi — botdagi «&#128205; Lokatsiyani yuborish» tugmasini bosing.";
       }
       if (bonusUsed > 0) msg += '<br><br>💸 '+bonusUsed.toLocaleString()+" so'm bonus ishlatildi.";
+      if (data.payable != null) msg += "<br>&#128176; Jami to'lov: <b>"+data.payable.toLocaleString()+" so'm</b>"+(data.delivery_fee_pending ? ' + yetkazib berish' : '');
       document.getElementById('success-msg').innerHTML = msg;
       openPage('pg-success');
       // Bonusni yangilash
