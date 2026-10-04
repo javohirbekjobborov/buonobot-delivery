@@ -7,6 +7,7 @@ const db = require('./db');
 const iiko = require('./iiko');
 const payme = require('./payme');
 const telegramAuth = require('./telegramAuth');
+const routing = require('./routing');
 
 // Hozircha yoqilgan funksiyalar. Click/Payme va bonus karta mijozga "Tez orada" bo'lib ko'rinadi;
 // yoqish uchun Railway Variables: PAYMENT_METHODS=cash,click,payme va LOYALTY_ENABLED=true
@@ -27,20 +28,60 @@ const RESTAURANT_LNG = parseFloat(process.env.RESTAURANT_LNG || '69.3366373');
 const RESTAURANT_ADDRESS = process.env.RESTAURANT_ADDRESS || "Yunusobod tumani, Gullola ko'chasi 13";
 const RESTAURANT_NAME = process.env.RESTAURANT_NAME || 'Buono Burger';
 const WORK_HOURS = process.env.WORK_HOURS || '10:00–23:00';
-const DELIVERY_RADIUS_KM = parseFloat(process.env.DELIVERY_RADIUS_KM || '3');
+// Yetkazib berish narxi — restorandan mijozgacha YO'L (marshrut) masofasi bo'yicha (routing.js).
+// DELIVERY_FEES: "gacha_metr:narx" juftlari; oxirgi chegaradan uzoqqa yetkazilmaydi
+const DEFAULT_DELIVERY_FEES = '200:0,1000:7000,3000:12000,5000:15000';
+function parseDeliveryFees(s) {
+  return String(s || '').split(',').map(p => p.split(':').map(Number))
+    .filter(([m, f]) => m > 0 && f >= 0).map(([m, f]) => ({ upTo: m, fee: f }))
+    .sort((a, b) => a.upTo - b.upTo);
+}
+let DELIVERY_FEES = parseDeliveryFees(process.env.DELIVERY_FEES || DEFAULT_DELIVERY_FEES);
+if (!DELIVERY_FEES.length) DELIVERY_FEES = parseDeliveryFees(DEFAULT_DELIVERY_FEES);
+const MAX_DELIVERY_METERS = DELIVERY_FEES[DELIVERY_FEES.length - 1].upTo;
+const DELIVERY_RADIUS_KM = MAX_DELIVERY_METERS / 1000;
 const ETA_MIN_MINUTES = parseInt(process.env.ETA_MIN_MINUTES || '30');
 const ETA_MAX_MINUTES = parseInt(process.env.ETA_MAX_MINUTES || '60');
 // O'zi olib ketish uchun taxminiy tayyor bo'lish vaqti (yetkazishdan qisqaroq)
 const PICKUP_ETA_MIN_MINUTES = parseInt(process.env.PICKUP_ETA_MIN_MINUTES || '10');
 const PICKUP_ETA_MAX_MINUTES = parseInt(process.env.PICKUP_ETA_MAX_MINUTES || '20');
 
-function haversineKm(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const toRad = d => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
-  return 2 * R * Math.asin(Math.sqrt(a));
+// Yo'l masofasi (metr) bo'yicha narx; oxirgi chegaradan uzoq — null
+function deliveryFeeFor(meters) {
+  const m = Math.round(meters);
+  const t = DELIVERY_FEES.find(t => m <= t.upTo);
+  return t ? t.fee : null;
+}
+
+// Restorandan nuqtagacha: {fee, meters, approx, outOfRange}. Havo masofasi chegaradan katta bo'lsa,
+// yo'l undan ham uzun — marshrut so'ralmaydi
+async function deliveryQuote(lat, lng) {
+  const air = routing.haversineMeters(RESTAURANT_LAT, RESTAURANT_LNG, lat, lng);
+  if (air > MAX_DELIVERY_METERS) return { fee: null, meters: Math.round(air), approx: false, outOfRange: true, byAir: true };
+  const r = await routing.routeMeters(RESTAURANT_LAT, RESTAURANT_LNG, lat, lng);
+  const fee = deliveryFeeFor(r.meters);
+  return { fee, meters: Math.round(r.meters), approx: r.approx, outOfRange: fee === null };
+}
+
+function fmtDist(m) {
+  return m < 1000 ? Math.round(m)+' m' : (Math.round(m / 100) / 10)+' km';
+}
+
+// Mijoz to'laydigan summa: mahsulotlar − bonus + yetkazib berish
+function orderPayable(order) {
+  return Math.max(0, (order.total || 0) - (order.bonus_used || 0)) + (order.delivery_fee || 0);
+}
+
+// "🚚 Yetkazib berish: 12,000 so'm (2.8 km)"; xodimlar uchun taxminiy masofa belgilanadi
+function deliveryFeeText(order, forStaff) {
+  if (order.delivery_type === 'pickup') return '';
+  if (order.delivery_fee != null) {
+    const dist = order.delivery_meters != null
+      ? ' ('+fmtDist(order.delivery_meters)+(forStaff && order.delivery_approx ? ', taxminiy' : '')+')' : '';
+    return '🚚 Yetkazib berish: '+(order.delivery_fee ? order.delivery_fee.toLocaleString()+" so'm" : 'bepul')+dist;
+  }
+  if (order.delivery_fee_pending) return '🚚 Yetkazib berish: lokatsiya kelgach hisoblanadi';
+  return '';
 }
 
 // Joriy vaqtga min-max daqiqa qo'shib, mahalliy (UTC+5) vaqt oralig'i sifatida formatlaymiz
@@ -373,7 +414,7 @@ async function pushOrderToIiko(order, items) {
       phone: order.user_phone || '',
       customerName: order.user_name || '',
       items: mapped,
-      comment: '🎫 Karta: '+(order.card_number||'-')+'\n'+(order.comment || ''),
+      comment: '🎫 Karta: '+(order.card_number||'-')+'\n'+(order.delivery_fee_text ? order.delivery_fee_text+'\n' : '')+(order.comment || ''),
       address: order.address || '',
       lat: order.lat,
       lng: order.lng,
@@ -476,20 +517,37 @@ bot.action('info_location', async ctx => {
   await sendRestaurantLocation(ctx.chat.id).catch(e => console.warn('[location]', e.message));
 });
 
-// Mijoz yuborgan lokatsiya: GPS'siz berilgan oxirgi faol yetkazish buyurtmasiga biriktiriladi va
-// guruhga (kuryer biriktirilgan bo'lsa — unga ham) "Buyurtma #N" sarlavhasi bilan yuboriladi
+// Mijoz yuborgan lokatsiya: GPS'siz berilgan oxirgi faol yetkazish buyurtmasiga biriktiriladi,
+// yetkazib berish narxi yo'l masofasi bo'yicha hisoblanadi va guruhga (kuryer biriktirilgan bo'lsa —
+// unga ham) "Buyurtma #N" sarlavhasi bilan yuboriladi
 bot.on('location', async ctx => {
   if (ctx.chat.type !== 'private') return;
   const { latitude, longitude } = ctx.message.location;
   const order = db.prepare("SELECT * FROM orders WHERE user_id=? AND delivery_type='delivery' AND (lat IS NULL OR lng IS NULL) AND status IN ('new','accepted','cooking','on_way') AND created_at >= datetime('now','-6 hours') ORDER BY id DESC LIMIT 1").get(String(ctx.from.id));
   if (!order) return;
   db.prepare('UPDATE orders SET lat=?, lng=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(latitude, longitude, order.id);
-  const dist = haversineKm(RESTAURANT_LAT, RESTAURANT_LNG, latitude, longitude);
-  const addr = (order.address || '-')+' · '+dist.toFixed(1)+' km'+(dist > DELIVERY_RADIUS_KM ? ' ⚠️ radiusdan tashqarida' : '');
+  const q = await deliveryQuote(latitude, longitude);
+  if (order.delivery_fee_pending) {
+    if (q.outOfRange) db.prepare('UPDATE orders SET delivery_fee_pending=0, delivery_meters=? WHERE id=?').run(q.meters, order.id);
+    else db.prepare('UPDATE orders SET delivery_fee=?, delivery_meters=?, delivery_approx=?, delivery_fee_pending=0 WHERE id=?').run(q.fee, q.meters, q.approx ? 1 : 0, order.id);
+  }
+  const o = db.prepare('SELECT * FROM orders WHERE id=?').get(order.id);
+
+  const addr = (o.address || '-')+' · '+fmtDist(q.meters)+(q.byAir ? ' (havo)' : " yo'l")+
+    (q.outOfRange ? ' ⚠️ yetkazib berish hududidan tashqarida' : o.delivery_fee != null ? ' · 🚚 '+(o.delivery_fee ? o.delivery_fee.toLocaleString()+" so'm" : 'bepul') : '');
+  let staffText = '', custText = '✅ Rahmat! Lokatsiya buyurtma #'+o.id+' ga biriktirildi.';
+  if (order.delivery_fee_pending && q.outOfRange) {
+    staffText = '⚠️ Buyurtma #'+o.id+': manzil yetkazib berish hududidan tashqarida ('+fmtDist(q.meters)+'). Narxni mijoz bilan kelishing.';
+    custText += '\n\n📍 Manzilingizgacha '+fmtDist(q.meters)+' — yetkazib berish '+fmtDist(MAX_DELIVERY_METERS)+" gacha. Operatorimiz siz bilan bog'lanadi.";
+  } else if (order.delivery_fee_pending) {
+    staffText = '🚚 Buyurtma #'+o.id+' — '+deliveryFeeText(o, true).replace('🚚 ', '')+"\n💰 Jami to'lov: "+orderPayable(o).toLocaleString()+" so'm";
+    custText += '\n\n'+deliveryFeeText(o, false)+"\n💰 Jami to'lov: "+orderPayable(o).toLocaleString()+" so'm";
+  }
   const targets = orderRecipients().slice();
-  if (order.courier_id && !targets.includes(order.courier_id)) targets.push(order.courier_id);
-  targets.forEach(id => bot.telegram.sendVenue(id, latitude, longitude, '📍 Buyurtma #'+order.id+' lokatsiyasi', addr).catch(()=>{}));
-  await ctx.reply('✅ Rahmat! Lokatsiya buyurtma #'+order.id+' ga biriktirildi.', { reply_markup: { remove_keyboard: true } }).catch(()=>{});
+  if (o.courier_id && !targets.includes(o.courier_id)) targets.push(o.courier_id);
+  targets.forEach(id => bot.telegram.sendVenue(id, latitude, longitude, '📍 Buyurtma #'+o.id+' lokatsiyasi', addr)
+    .then(() => staffText && bot.telegram.sendMessage(id, staffText)).catch(()=>{}));
+  await ctx.reply(custText, { reply_markup: { remove_keyboard: true } }).catch(()=>{});
 });
 
 // Ro'yxatdan o'tish bosqichlari (telefon → ism → familiya → yosh → jins)
@@ -987,7 +1045,15 @@ function notifyAdmin(order) {
   let t = '🆕 YANGI BUYURTMA #'+order.id+'\n\n';
   t += (order.user_name||'-')+' | '+(order.user_phone||'-')+'\n';
   items.forEach(i => { t += '▪ '+i.name_uz+' × '+i.qty+' = '+(i.price*i.qty).toLocaleString()+" so'm\n"; });
-  t += '\nJami: '+order.total.toLocaleString()+" so'm";
+  const feeText = deliveryFeeText(order, true);
+  if (feeText || order.bonus_used) {
+    t += "\nMahsulotlar: "+order.total.toLocaleString()+" so'm";
+    if (order.bonus_used) t += "\n💸 Bonus: −"+order.bonus_used.toLocaleString()+" so'm";
+    if (feeText) t += '\n'+feeText;
+    t += "\n💰 Jami to'lov: "+orderPayable(order).toLocaleString()+" so'm"+(order.delivery_fee_pending ? ' + yetkazib berish' : '');
+  } else {
+    t += '\nJami: '+order.total.toLocaleString()+" so'm";
+  }
   t += '\n'+paymentLabel(order);
   t += '\n'+(order.delivery_type === 'pickup' ? "🏃 O'zi olib ketish" : "🛵 Yetkazib berish");
   if (order.comment) t += '\n💬 '+order.comment;
@@ -1009,17 +1075,18 @@ function notifyCustomerNewOrder(order) {
   let items = [];
   try { items = JSON.parse(order.items); } catch(e) {}
   const bonus = order.bonus_used || 0;
-  const payable = Math.max(0, (order.total||0) - bonus);
   const isPickup = order.delivery_type === 'pickup';
+  const feeText = deliveryFeeText(order, false);
 
   let t = '🎉 <b>Buyurtmangiz qabul qilindi!</b>\n';
   t += '🧾 Buyurtma raqami: <b>#'+order.id+'</b>\n\n';
   items.forEach(i => { t += '▪️ '+esc(i.name_uz)+' × '+i.qty+' — '+(i.price*i.qty).toLocaleString()+" so'm\n"; });
   t += '➖➖➖➖➖➖➖➖\n';
-  if (bonus > 0) {
+  if (bonus > 0 || feeText) {
     t += 'Mahsulotlar: '+order.total.toLocaleString()+" so'm\n";
-    t += '💸 Bonus: −'+bonus.toLocaleString()+" so'm\n";
-    t += "To'lanadi: <b>"+payable.toLocaleString()+" so'm</b>\n";
+    if (bonus > 0) t += '💸 Bonus: −'+bonus.toLocaleString()+" so'm\n";
+    if (feeText) t += feeText+'\n';
+    t += "To'lanadi: <b>"+orderPayable(order).toLocaleString()+" so'm</b>"+(order.delivery_fee_pending ? ' + yetkazib berish' : '')+'\n';
   } else {
     t += 'Jami: <b>'+order.total.toLocaleString()+" so'm</b>\n";
   }
@@ -1043,7 +1110,7 @@ function needsLocation(order) {
 // Mijozdan Telegram'ning native tugmasi orqali lokatsiya so'raymiz — bot.on('location') qabul qiladi
 function requestOrderLocation(order) {
   return bot.telegram.sendMessage(order.user_id,
-    "📍 Kuryer sizni tezroq topishi uchun buyurtma #"+order.id+" lokatsiyasini yuboring — pastdagi tugmani bosing.\n\n"+
+    "📍 Buyurtma #"+order.id+" lokatsiyasini yuboring — yetkazib berish narxi yo'l masofasiga qarab hisoblanadi va kuryer sizni tezroq topadi. Pastdagi tugmani bosing.\n\n"+
     "Boshqa manzilga buyurtma bergan bo'lsangiz: 📎 → Lokatsiya orqali xaritadan nuqtani tanlab yuboring.",
     { reply_markup: { keyboard: [[{ text: '📍 Lokatsiyani yuborish', request_location: true }]], resize_keyboard: true, one_time_keyboard: true } });
 }
@@ -1053,7 +1120,11 @@ function notifyCourier(courierId, order) {
   let t = '🛵 Buyurtma #'+order.id+' tayinlandi!\n\n';
   t += (order.user_name||'-')+'\n'+(order.user_phone||'-')+'\n';
   if (order.address) t += '📍 '+order.address+'\n';
-  t += items.map(i => i.name_uz+' × '+i.qty).join(', ')+'\nJami: '+order.total.toLocaleString()+" so'm";
+  t += items.map(i => i.name_uz+' × '+i.qty).join(', ');
+  const feeText = deliveryFeeText(order, true);
+  if (feeText) t += '\n'+feeText;
+  t += (order.payment !== 'cash' && order.payment_status === 'paid' ? "\n✅ Onlayn to'langan: " : '\n💰 Mijozdan olinadi: ')+
+    orderPayable(order).toLocaleString()+" so'm"+(order.delivery_fee_pending ? ' + yetkazib berish' : '');
   bot.telegram.sendMessage(courierId, t).catch(()=>{});
   if (order.lat && order.lng) bot.telegram.sendLocation(courierId, order.lat, order.lng).catch(()=>{});
 }
@@ -1187,14 +1258,22 @@ app.post('/api/orders', async (req, res) => {
     return res.status(409).json({ error: "Narxlar yangilandi. Yangi jami: "+total.toLocaleString()+" so'm. Savatchani tekshirib, qayta tasdiqlang.", price_changed: true, total });
   }
 
-  // Yetkazib berish radiusi tekshiruvi (faqat delivery uchun)
+  // Yetkazib berish narxi — yo'l (marshrut) masofasi bo'yicha. GPS bo'lmasa — lokatsiya kelgach hisoblanadi
+  let deliveryFee = null, deliveryMeters = null, deliveryApprox = 0, feePending = 0;
   if (deliveryType === 'delivery') {
-    if (typeof lat === 'number' && typeof lng === 'number') {
-      const distance = haversineKm(RESTAURANT_LAT, RESTAURANT_LNG, lat, lng);
-      if (distance > DELIVERY_RADIUS_KM) {
-        return res.status(400).json({ error: "Manzilingiz "+distance.toFixed(1)+" km uzoqlikda. Bizning yetkazib berish radiusimiz "+DELIVERY_RADIUS_KM+" km. O'zi olib ketishni tanlashingiz mumkin." });
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      const q = await deliveryQuote(lat, lng);
+      if (q.outOfRange) {
+        return res.status(400).json({ error: "Manzilingizgacha "+(q.byAir ? '' : "yo'l bo'yicha ")+fmtDist(q.meters)+". Yetkazib berish "+fmtDist(MAX_DELIVERY_METERS)+" gacha. O'zi olib ketishni tanlashingiz mumkin." });
       }
+      deliveryFee = q.fee; deliveryMeters = q.meters; deliveryApprox = q.approx ? 1 : 0;
+    } else {
+      feePending = 1;
     }
+  }
+  // Onlayn to'lovda summa oldindan aniq bo'lishi kerak
+  if (payment !== 'cash' && feePending) {
+    return res.status(400).json({ error: "Onlayn to'lov uchun avval lokatsiyani yuboring — yetkazib berish narxi masofaga qarab hisoblanadi." });
   }
 
   // Bonus ishlatish — validatsiya
@@ -1205,8 +1284,8 @@ app.post('/api/orders', async (req, res) => {
     if (bonusUsed > allowedMax) return res.status(400).json({ error: "Bonus limiti oshib ketdi. Maksimum: "+allowedMax.toLocaleString()+" so'm" });
   }
 
-  const r = db.prepare('INSERT INTO orders (user_id,user_name,user_phone,items,total,address,lat,lng,comment,payment,bonus_used,delivery_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
-    .run(user_id, user_name, user_phone, JSON.stringify(items), total, address, lat, lng, comment, payment, bonusUsed, deliveryType);
+  const r = db.prepare('INSERT INTO orders (user_id,user_name,user_phone,items,total,address,lat,lng,comment,payment,bonus_used,delivery_type,delivery_fee,delivery_fee_pending,delivery_meters,delivery_approx) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run(user_id, user_name, user_phone, JSON.stringify(items), total, address, lat, lng, comment, payment, bonusUsed, deliveryType, deliveryFee, feePending, deliveryMeters, deliveryApprox);
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(r.lastInsertRowid);
 
   if (bonusUsed > 0) {
@@ -1230,6 +1309,7 @@ app.post('/api/orders', async (req, res) => {
           lng: order.lng,
           comment: order.comment,
           delivery_type: order.delivery_type,
+          delivery_fee_text: deliveryFeeText(order, true),
           card_number: customer && customer.card_number
         }, itemsArr);
         if (result.ok && result.orderId) {
@@ -1247,13 +1327,16 @@ app.post('/api/orders', async (req, res) => {
     order_id: r.lastInsertRowid,
     delivery_type: deliveryType,
     eta_text: orderEtaText(order),
-    eta_window: orderEtaWindow(order)
+    eta_window: orderEtaWindow(order),
+    delivery_fee: order.delivery_fee,
+    delivery_meters: order.delivery_meters,
+    delivery_fee_pending: !!order.delivery_fee_pending,
+    payable: orderPayable(order)
   };
 
   // Payme bilan to'lov — checkout havolasini qaytaramiz
   if (payment === 'payme' && payme.isConfigured()) {
-    const payable = Math.max(0, (order.total || 0) - (order.bonus_used || 0));
-    const amountTiyin = payable * 100;
+    const amountTiyin = orderPayable(order) * 100;
     const callback = APP_URL + '/payme/return?order_id=' + order.id;
     response.payme_url = payme.checkoutUrl(order.id, amountTiyin, callback);
     response.payment = 'payme';
@@ -1268,8 +1351,7 @@ app.post('/api/orders', async (req, res) => {
 
 // Buyurtma uchun Payme kutayotgan summa (tiyinda)
 function paymeExpectedAmount(order) {
-  const payable = Math.max(0, (order.total || 0) - (order.bonus_used || 0));
-  return payable * 100;
+  return orderPayable(order) * 100;
 }
 
 // account.order_id orqali buyurtmani topib, to'lov mumkinligini tekshiradi.
@@ -1380,7 +1462,7 @@ const PAYME_METHODS = {
         const order = db.prepare('SELECT * FROM orders WHERE id=?').get(tx.order_id);
         if (order) {
           orderRecipients().forEach(id => {
-            bot.telegram.sendMessage(id, "✅ Buyurtma #"+order.id+" uchun Payme to'lovi qabul qilindi ("+(order.total).toLocaleString()+" so'm).").catch(()=>{});
+            bot.telegram.sendMessage(id, "✅ Buyurtma #"+order.id+" uchun Payme to'lovi qabul qilindi ("+orderPayable(order).toLocaleString()+" so'm).").catch(()=>{});
           });
           if (order.user_id && order.user_id !== 'anon') {
             bot.telegram.sendMessage(order.user_id, "✅ To'lovingiz qabul qilindi! Buyurtma #"+order.id+" tasdiqlandi.").catch(()=>{});
@@ -1527,8 +1609,21 @@ app.get('/api/config', (req, res) => {
     bonus_ttl_days: BONUS_TTL_DAYS,
     max_bonus_use_percent: MAX_BONUS_USE_PERCENT,
     payment_methods: PAYMENT_METHODS,
-    loyalty_enabled: LOYALTY_ENABLED
+    loyalty_enabled: LOYALTY_ENABLED,
+    delivery_fees: DELIVERY_FEES
   });
+});
+
+// Mini-app: GPS olingach yetkazib berish narxini ko'rsatish uchun (yo'l masofasi bo'yicha).
+// Marshrut API'si begonalar tomonidan ishlatilmasligi uchun faqat imzolangan initData bilan
+app.get('/api/delivery/quote', async (req, res) => {
+  if (!getTgUser(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const lat = parseFloat(req.query.lat), lng = parseFloat(req.query.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    return res.status(400).json({ error: 'Invalid coordinates' });
+  }
+  const q = await deliveryQuote(lat, lng);
+  res.json({ fee: q.fee, meters: q.meters, approx: q.approx, out_of_range: q.outOfRange, by_air: !!q.byAir, max_meters: MAX_DELIVERY_METERS });
 });
 
 // Admin: foydalanuvchilarga ommaviy xabar yuborish
@@ -1767,7 +1862,7 @@ app.get('/api/admin/stats', (req, res) => {
     cooking: db.prepare("SELECT COUNT(*) as c FROM orders WHERE status='cooking'").get().c,
     on_way: db.prepare("SELECT COUNT(*) as c FROM orders WHERE status='on_way'").get().c,
     delivered: db.prepare("SELECT COUNT(*) as c FROM orders WHERE status='delivered'").get().c,
-    today_total: db.prepare("SELECT COALESCE(SUM(total),0) as s FROM orders WHERE date(created_at)=date('now') AND status='delivered'").get().s,
+    today_total: db.prepare("SELECT COALESCE(SUM(total + COALESCE(delivery_fee,0)),0) as s FROM orders WHERE date(created_at)=date('now') AND status='delivered'").get().s,
     pending_payment: db.prepare("SELECT COUNT(*) as c FROM orders WHERE payment_status='checking'").get().c,
   });
 });
