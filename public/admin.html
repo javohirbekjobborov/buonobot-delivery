@@ -33,7 +33,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;
 .sp{padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700}
 .s-new{background:#fef3c7;color:#92400e}.s-accepted{background:#dbeafe;color:#1e40af}
 .s-cooking{background:#fce7f3;color:#9d174d}.s-on_way{background:#d1fae5;color:#065f46}
-.s-delivered{background:#f0fdf4;color:#166534}
+.s-delivered{background:#f0fdf4;color:#166534}.s-cancelled{background:#fee2e2;color:#991b1b}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:12px}
 .om{background:#fff;border-radius:12px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
 .oh{padding:13px 16px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
@@ -634,6 +634,7 @@ function openM(id){
   if(o.address)html+='<div class="dl">Manzil</div><div class="dv">'+esc(o.address)+'</div>';
   if(o.comment)html+='<div class="dl">Izoh</div><div class="dv">'+esc(o.comment)+'</div>';
   html+='<div class="dl">Buyurtma</div><div class="ib">'+iH+'</div>';
+  if(o.iiko_status)html+='<div class="dl">iiko holati</div><div class="dv">'+esc(o.iiko_status)+(o.delivered_at?' &middot; yetkazildi: '+fmtT(o.delivered_at):'')+'</div>';
   if(geo)html+='<div class="dl">Xarita</div><div id="omap"></div>';
   html+='<div id="ofb"></div>';
   html+='<div class="dl">Kuryer</div><select class="cs" id="csel">'+cOpts+'</select>';
