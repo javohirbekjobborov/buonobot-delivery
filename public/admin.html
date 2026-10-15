@@ -634,6 +634,7 @@ function openM(id){
   if(o.address)html+='<div class="dl">Manzil</div><div class="dv">'+esc(o.address)+'</div>';
   if(o.comment)html+='<div class="dl">Izoh</div><div class="dv">'+esc(o.comment)+'</div>';
   html+='<div class="dl">Buyurtma</div><div class="ib">'+iH+'</div>';
+  if(o.iiko_sync_error)html+='<div class="dl">iiko xatosi</div><div class="dv" style="color:#e63946">&#9888;&#65039; Buyurtma iiko\'ga tushmagan: '+esc(o.iiko_sync_error)+'</div>';
   if(o.iiko_status)html+='<div class="dl">iiko holati</div><div class="dv">'+esc(o.iiko_status)+(o.delivered_at?' &middot; yetkazildi: '+fmtT(o.delivered_at):'')+'</div>';
   if(geo)html+='<div class="dl">Xarita</div><div id="omap"></div>';
   html+='<div id="ofb"></div>';
