@@ -1226,6 +1226,13 @@ const IIKO_STATUS_MAP = {
 const STATUS_RANK = { new: 0, accepted: 1, cooking: 2, on_way: 3, delivered: 4 };
 let iikoStatusErrAt = 0;
 
+// Buyurtma iiko'ga tushmasa oshxona uni ko'rmaydi — buyurtmalar guruhini ogohlantiramiz (oddiy matn)
+function alertIikoFailure(orderId, reason) {
+  const t = "⚠️ Buyurtma #"+orderId+" iiko'ga tushmadi"+(reason ? ":\n"+String(reason).slice(0, 200) : '')+
+    "\n\nOshxona bu buyurtmani ko'rmaydi — iltimos, kassada qo'lda kiriting.";
+  for (const id of orderRecipients()) bot.telegram.sendMessage(id, t).catch(()=>{});
+}
+
 async function syncIikoStatuses() {
   if (!iiko.isConfigured()) return;
   const active = db.prepare(
@@ -1247,9 +1254,10 @@ async function syncIikoStatuses() {
     if (!info) continue;
     if (info.creationStatus === 'Error') {
       if (o.iiko_status !== 'CreationError') {
-        db.prepare("UPDATE orders SET iiko_status='CreationError', iiko_sync_error=? WHERE id=?")
-          .run(String((info.errorInfo && (info.errorInfo.message || info.errorInfo.code)) || 'creation error').slice(0, 250), o.id);
-        console.warn('[iiko] order#'+o.id+' iiko\'da yaratilmadi');
+        const reason = String((info.errorInfo && (info.errorInfo.message || info.errorInfo.code)) || 'creation error').slice(0, 250);
+        db.prepare("UPDATE orders SET iiko_status='CreationError', iiko_sync_error=? WHERE id=?").run(reason, o.id);
+        console.warn('[iiko] order#'+o.id+' iiko\'da yaratilmadi: '+reason);
+        if (o.fresh) alertIikoFailure(o.id, reason);
       }
       continue;
     }
@@ -1431,6 +1439,9 @@ app.post('/api/orders', async (req, res) => {
         } else if (result.error) {
           db.prepare('UPDATE orders SET iiko_sync_error=? WHERE id=?').run(result.error.slice(0, 250), order.id);
           console.warn('[iiko] order#'+order.id+' sync failed:', result.error);
+          alertIikoFailure(order.id, result.error);
+        } else if (result.skipped === 'no_iiko_items') {
+          alertIikoFailure(order.id, "mahsulotlar iiko menyusiga bog'lanmagan");
         }
       } catch(e) { console.warn('[iiko] push exception:', e.message); }
     });
