@@ -1148,7 +1148,7 @@ function notifyCustomer(order) {
     accepted: '✅ Buyurtmangiz qabul qilindi!',
     cooking: '👨‍🍳 Buyurtmangiz tayyorlanmoqda...',
     on_way: "🛵 Kuryer yo'lda! Tez orada yetkaziladi.",
-    delivered: '🎉 Buyurtma yetkazildi! Rahmat!'
+    delivered: order.delivery_type === 'pickup' ? '🎉 Buyurtmangiz berildi. Yoqimli ishtaha!' : '🎉 Buyurtma yetkazildi! Rahmat!'
   };
   if (!m[order.status]) return;
   let msg = m[order.status];
@@ -1175,23 +1175,116 @@ function notifyCustomer(order) {
   }
 
   bot.telegram.sendMessage(order.user_id, msg, {parse_mode: 'HTML'}).catch(()=>{});
+  // Baho so'rovi shu yerda emas — sendDueFeedbackRequests() delivered_at'dan FEEDBACK_DELAY_MIN o'tib yuboradi
+}
 
-  // Yetkazilgandan keyin baho so'rash (rasmda ko'rsatilganidek 3 ta tugma)
-  if (order.status === 'delivered' && order.user_id && order.user_id !== 'anon' && !order.feedback_sent) {
-    db.prepare('UPDATE orders SET feedback_sent=1 WHERE id=?').run(order.id);
-    setTimeout(() => {
-      bot.telegram.sendMessage(
-        order.user_id,
-        "🙏 Buyurtmangizdan mamnunmisiz?\nIltimos, fikr-mulohaza bildiring:",
+// Buyurtma "yetkazildi" bo'lgan vaqtni bir marta belgilaymiz (baho so'rovi shu vaqtdan hisoblanadi)
+function stampDelivered(orderId, status) {
+  if (status === 'delivered') db.prepare('UPDATE orders SET delivered_at=COALESCE(delivered_at, CURRENT_TIMESTAMP) WHERE id=?').run(orderId);
+}
+
+// ── Yetkazilgandan keyin baho so'rash ────────────────────────────────────────
+// Holat bot paneli (admin/kuryer) yoki iiko orqali "delivered" bo'ladi; so'rov FEEDBACK_DELAY_MIN daqiqadan
+// keyin (ovqatni tatib ko'rishga ulgursin) bir marta yuboriladi. Jadval DB'da — deploy/restartda yo'qolmaydi.
+const FEEDBACK_DELAY_MIN = Math.max(0, parseFloat(process.env.FEEDBACK_DELAY_MIN || '20') || 0);
+// Eski buyurtmaga (masalan, smena oxirida ommaviy yopilgan yoki deploy'dan keyin birinchi sinxronda) so'rov yubormaymiz
+const FEEDBACK_MAX_AGE_H = 8;  // buyurtma berilganidan beri, soat
+const NOTIFY_MAX_AGE_H = 6;    // iiko holati o'zgarganda mijozga xabar — faqat shu yoshdagi buyurtmalarga
+
+async function sendDueFeedbackRequests() {
+  const due = db.prepare(
+    "SELECT * FROM orders WHERE status='delivered' AND feedback_sent=0 AND delivered_at IS NOT NULL" +
+    " AND delivered_at <= datetime('now', ?) AND created_at >= datetime('now', ?)" +
+    " AND user_id IS NOT NULL AND user_id != 'anon' ORDER BY id LIMIT 20"
+  ).all('-'+FEEDBACK_DELAY_MIN+' minutes', '-'+FEEDBACK_MAX_AGE_H+' hours');
+  for (const order of due) {
+    // Bir martalik: parallel tsikl yoki qayta ishga tushishda ikki marta yuborilmasin
+    if (db.prepare('UPDATE orders SET feedback_sent=1 WHERE id=? AND feedback_sent=0').run(order.id).changes !== 1) continue;
+    // Mijoz bu buyurtma bo'yicha fikrini allaqachon qoldirgan bo'lsa — so'ramaymiz
+    if (db.prepare('SELECT 1 FROM feedback WHERE order_id=? LIMIT 1').get(order.id)) continue;
+    try {
+      await bot.telegram.sendMessage(order.user_id,
+        "🍔 Buyurtma #"+order.id+" sizga yoqdimi?\n\nFikringiz biz uchun juda muhim — iltimos, baho bering yoki izoh qoldiring 🙏",
         Markup.inlineKeyboard([
           [Markup.button.callback('⭐ Baho berish', 'fb_or_'+order.id+'_rating')],
           [Markup.button.callback('💡 Taklif yuborish', 'fb_or_'+order.id+'_sugg')],
           [Markup.button.callback('😡 Shikoyat yuborish', 'fb_or_'+order.id+'_comp')],
-        ])
-      ).catch(()=>{});
-    }, 2000);
+        ]));
+    } catch (e) { console.warn('[feedback] #'+order.id+' baho so\'rovi yuborilmadi:', e.message); }
   }
 }
+
+// ── iiko'dan buyurtma holatini olish ─────────────────────────────────────────
+// Xodimlar buyurtmani iiko'da yuritadi (bot panelida emas) — holatni shu yerdan olamiz.
+// Holat faqat oldinga siljiydi; mijozga faqat "yo'lda" va "yetkazildi" haqida xabar boriladi
+// ("qabul qilindi" xabari buyurtma berilganda allaqachon yuborilgan).
+const IIKO_STATUS_MAP = {
+  Unconfirmed: 'new', WaitCooking: 'accepted', ReadyForCooking: 'accepted',
+  CookingStarted: 'cooking', CookingCompleted: 'cooking', Waiting: 'cooking',
+  OnWay: 'on_way', Delivered: 'delivered', Closed: 'delivered', Cancelled: 'cancelled'
+};
+const STATUS_RANK = { new: 0, accepted: 1, cooking: 2, on_way: 3, delivered: 4 };
+let iikoStatusErrAt = 0;
+
+async function syncIikoStatuses() {
+  if (!iiko.isConfigured()) return;
+  const active = db.prepare(
+    "SELECT id, iiko_order_id, status, iiko_status, (created_at >= datetime('now', ?)) AS fresh FROM orders WHERE iiko_order_id IS NOT NULL" +
+    " AND status NOT IN ('delivered','cancelled') AND created_at >= datetime('now','-2 days') ORDER BY id DESC LIMIT 100"
+  ).all('-'+NOTIFY_MAX_AGE_H+' hours');
+  if (!active.length) return;
+  let r;
+  try {
+    r = await iiko.getDeliveriesByIds(active.map(o => o.iiko_order_id));
+  } catch (e) {
+    // Har daqiqada logni to'ldirmaslik uchun — 10 daqiqada bir marta
+    if (Date.now() - iikoStatusErrAt > 10 * 60 * 1000) { iikoStatusErrAt = Date.now(); console.warn('[iiko] status olinmadi:', e.message); }
+    return;
+  }
+  const byId = new Map(((r && r.orders) || []).map(x => [x.id, x]));
+  for (const o of active) {
+    const info = byId.get(o.iiko_order_id);
+    if (!info) continue;
+    if (info.creationStatus === 'Error') {
+      if (o.iiko_status !== 'CreationError') {
+        db.prepare("UPDATE orders SET iiko_status='CreationError', iiko_sync_error=? WHERE id=?")
+          .run(String((info.errorInfo && (info.errorInfo.message || info.errorInfo.code)) || 'creation error').slice(0, 250), o.id);
+        console.warn('[iiko] order#'+o.id+' iiko\'da yaratilmadi');
+      }
+      continue;
+    }
+    const st = info.order && info.order.status;
+    if (!st) continue;
+    if (st !== o.iiko_status) db.prepare('UPDATE orders SET iiko_status=? WHERE id=?').run(st, o.id);
+    const next = IIKO_STATUS_MAP[st];
+    if (!next) continue;
+    if (next === 'cancelled') {
+      db.prepare("UPDATE orders SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE id=?").run(o.id);
+      console.log('[iiko] order#'+o.id+' bekor qilindi (iiko)');
+      continue;
+    }
+    if (STATUS_RANK[next] <= (STATUS_RANK[o.status] != null ? STATUS_RANK[o.status] : -1)) continue;
+    db.prepare('UPDATE orders SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(next, o.id);
+    stampDelivered(o.id, next);
+    console.log('[iiko] order#'+o.id+' '+o.status+' → '+next+' ('+st+')'+(o.fresh ? '' : ' — eski, mijozga xabarsiz'));
+    if (!o.fresh) { db.prepare('UPDATE orders SET feedback_sent=1 WHERE id=?').run(o.id); continue; }
+    if (next === 'on_way' || next === 'delivered') notifyCustomer(db.prepare('SELECT * FROM orders WHERE id=?').get(o.id));
+  }
+}
+
+const ORDER_TICK_SEC = Math.max(1, parseInt(process.env.ORDER_STATUS_POLL_SEC || '60') || 60);
+let orderTickBusy = false;
+async function orderTick() {
+  if (orderTickBusy) return;
+  orderTickBusy = true;
+  try {
+    await syncIikoStatuses();
+    await sendDueFeedbackRequests();
+  } catch (e) { console.warn('[orders] tick:', e.message); }
+  finally { orderTickBusy = false; }
+}
+setInterval(orderTick, ORDER_TICK_SEC * 1000);
+setTimeout(orderTick, Math.min(15, ORDER_TICK_SEC) * 1000);
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
@@ -1963,6 +2056,7 @@ app.put('/api/admin/orders/:id', (req, res) => {
   if (status) {
     db.prepare('UPDATE orders SET status=?,courier_id=?,courier_name=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')
       .run(status, courier_id||null, courier_name||null, req.params.id);
+    stampDelivered(req.params.id, status);
     const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
     notifyCustomer(order);
     if (courier_id && status==='on_way') notifyCourier(courier_id, order);
@@ -2063,6 +2157,7 @@ app.put('/api/courier/orders/:id', (req, res) => {
   // Kuryer faqat "oldim" va "yetkazdim" holatlarini qo'ya oladi
   if (!['on_way', 'delivered'].includes(req.body.status)) return res.status(400).json({ error: 'Invalid status' });
   db.prepare('UPDATE orders SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(req.body.status, req.params.id);
+  stampDelivered(req.params.id, req.body.status);
   notifyCustomer(db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id));
   res.json({ ok: true });
 });

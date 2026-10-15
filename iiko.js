@@ -1,6 +1,6 @@
 // iiko Cloud API client
 // Hujjat: https://api-ru.iiko.services/api/1/help
-const BASE = 'https://api-ru.iiko.services';
+const BASE = (process.env.IIKO_BASE_URL || 'https://api-ru.iiko.services').replace(/\/+$/, '');
 
 const API_LOGIN = process.env.IIKO_API_LOGIN || '';
 const ORG_ID = process.env.IIKO_ORGANIZATION_ID || '';
@@ -146,6 +146,13 @@ async function createDelivery(payload) {
   return call('/api/1/deliveries/create', body);
 }
 
+// Buyurtmalar holati (status: Unconfirmed … OnWay, Delivered, Closed, Cancelled)
+// Hujjat: /api/1/deliveries/by_id
+async function getDeliveriesByIds(orderIds) {
+  if (!isConfigured()) throw new Error('iiko not configured');
+  return call('/api/1/deliveries/by_id', { organizationId: ORG_ID, orderIds });
+}
+
 // CRM — mijoz yaratish / yangilash. customer/create_or_update karta qabul qilmaydi,
 // kartani alohida customer/card/add orqali qo'shamiz.
 async function customerCreateOrUpdate(customer) {
@@ -233,6 +240,7 @@ module.exports = {
   getTerminalGroups,
   getPaymentTypes,
   createDelivery,
+  getDeliveriesByIds,
   customerCreateOrUpdate,
   customerCardAdd,
   customerInfo,

@@ -124,6 +124,10 @@ try { db.exec("ALTER TABLE orders ADD COLUMN delivery_fee_pending INTEGER DEFAUL
 try { db.exec("ALTER TABLE orders ADD COLUMN delivery_meters INTEGER"); } catch(e) {}
 try { db.exec("ALTER TABLE orders ADD COLUMN delivery_approx INTEGER DEFAULT 0"); } catch(e) {}
 
+// iiko'dagi buyurtma holati (Delivered, Closed, ...) va yetkazilgan vaqt — baho so'rovi shundan keyin yuboriladi
+try { db.exec("ALTER TABLE orders ADD COLUMN iiko_status TEXT"); } catch(e) {}
+try { db.exec("ALTER TABLE orders ADD COLUMN delivered_at DATETIME"); } catch(e) {}
+
 try { db.exec("ALTER TABLE customers ADD COLUMN age_range TEXT"); } catch(e) {}
 try { db.exec("ALTER TABLE customers ADD COLUMN gender TEXT"); } catch(e) {}
 
