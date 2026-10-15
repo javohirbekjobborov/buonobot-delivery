@@ -66,6 +66,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;
 .sbtn{background:#e63946;color:#fff;border:none;padding:9px 18px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer}
 .gbtn{background:#64748b;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;margin-left:7px}
 .empty{text-align:center;padding:22px;color:#64748b;font-size:12px}
+.fbc{background:#fff;border-radius:9px;padding:10px 12px;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);border-left:4px solid #e2e8f0}
+.fbc.bad{border-left-color:#e63946;background:#fff7f7}
+.fbh{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px}
+.mut{font-size:10px;color:#64748b}
+.fbr{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:4px 10px;margin-top:7px;font-size:11px}
+.st{letter-spacing:1px;color:#f59e0b}.st i{font-style:normal;color:#cbd5e1}
+.fbt{margin-top:7px;font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-word;background:#f8fafc;border-radius:7px;padding:7px 9px}
+.fbt.clamp{max-height:calc(7em + 14px);overflow:hidden;cursor:pointer;position:relative;padding-bottom:0;border-bottom:7px solid #f8fafc}
+.fbt.clamp:after{content:"… ko'proq ▾";position:absolute;right:0;bottom:0;padding:0 9px 0 14px;background:linear-gradient(90deg,rgba(248,250,252,0),#f8fafc 22%);color:#3b82f6;font-weight:700}
+.fba{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+.fbimg img{width:100%;max-width:360px;border-radius:8px;margin-top:7px;display:block}
 </style></head>
 <body>
 <aside class="sidebar">
@@ -77,6 +88,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;
     <button class="nb" id="nb-menu" onclick="go('menu')">&#127828; Menyu</button>
     <button class="nb" id="nb-add" onclick="go('add')">&#10133; Qo'shish</button>
     <button class="nb" id="nb-customers" onclick="go('customers')">&#128100; Mijozlar</button>
+    <button class="nb" id="nb-feedback" onclick="go('feedback')">&#11088; Fikrlar</button>
     <button class="nb" id="nb-broadcast" onclick="go('broadcast')">&#128227; Xabar yuborish</button>
   </nav>
   <div class="uid" id="uid-info">yuklanmoqda...</div>
@@ -99,7 +111,7 @@ var H={'Content-Type':'application/json','X-Telegram-Init-Data':(tg&&tg.initData
 document.getElementById('uid-info').textContent=UID?'ID: '+UID:'UID topilmadi!';
 
 var orders=[],couriers=[],prods=[],cats=[],customers=[],fmap=null,cFilt='all',editId=null,curPage='dash';
-var PAGES=['dash','orders','map','menu','add','customers','broadcast'];
+var PAGES=['dash','orders','map','menu','add','customers','feedback','broadcast'];
 var SL={new:'Yangi',accepted:'Qabul',cooking:'Tayyorlanmoqda',on_way:"Yo'lda",delivered:'Yetkazildi',cancelled:'Bekor'};
 var SC={new:'s-new',accepted:'s-accepted',cooking:'s-cooking',on_way:'s-on_way',delivered:'s-delivered',cancelled:'s-cancelled'};
 var PL={cash:'Naqd',click:'Click',payme:'Payme'};
@@ -107,6 +119,16 @@ var PL={cash:'Naqd',click:'Click',payme:'Payme'};
 function el(id){return document.getElementById(id);}
 function qs(sel){return document.querySelector(sel);}
 function qsa(sel){return document.querySelectorAll(sel);}
+// Mijoz yozgan matn (ism, manzil, izoh) HTML sifatida emas, oddiy matn sifatida chiqsin
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+// SQLite CURRENT_TIMESTAMP — UTC, "YYYY-MM-DD HH:MM:SS" (zonasiz)
+function parseUtc(dt){if(!dt)return null;var s=String(dt);if(s.indexOf('T')<0)s=s.replace(' ','T')+'Z';var d=new Date(s);return isNaN(d.getTime())?null:d;}
+function fmtT(dt){
+  var d=parseUtc(dt);if(!d)return '-';
+  var t=new Date(d.getTime()+5*3600000); // Toshkent, UTC+5
+  function p(n){return (n<10?'0':'')+n;}
+  return p(t.getUTCDate())+'.'+p(t.getUTCMonth()+1)+'.'+t.getUTCFullYear()+' '+p(t.getUTCHours())+':'+p(t.getUTCMinutes());
+}
 
 // Nav toggle
 function go(name){
@@ -123,6 +145,7 @@ function go(name){
   else if(name==='menu')pageMenu(m);
   else if(name==='add')pageAdd(m);
   else if(name==='customers')pageCustomers(m);
+  else if(name==='feedback')pageFeedback(m);
   else if(name==='broadcast')pageBroadcast(m);
 }
 
@@ -165,6 +188,8 @@ function pageOrders(m){
 }
 
 function pageMap(m){
+  // Oldingi xarita eski (o'chirilgan) elementga bog'langan — har safar yangidan quramiz
+  if(fmap){fmap.remove();fmap=null;}
   m.innerHTML='<div class="ph"><h1>&#128506; Xarita</h1><button class="rbtn" onclick="buildMap()">&#128260;</button></div><div id="fullMap"></div>';
   setTimeout(buildMap,200);
 }
@@ -179,19 +204,19 @@ function pageAdd(m){
   function renderForm(){
     var catOpts=cats.length?cats.map(function(c){
       var sel=((!p&&c.id===cats[0].id)||(p&&p.category_id==c.id))?' selected':'';
-      return '<option value="'+c.id+'"'+sel+'>'+(c.emoji||'')+' '+c.name_uz+'</option>';
+      return '<option value="'+c.id+'"'+sel+'>'+esc((c.emoji||'')+' '+c.name_uz)+'</option>';
     }).join(''):'<option value="1">Burger</option>';
     m.innerHTML=
       '<div class="ph"><h1>'+(editId?'Tahrirlash':'Yangi ovqat')+'</h1></div>'+
       '<div class="form">'+
         '<input type="hidden" id="eid" value="'+(editId||'')+'">'+
         '<div class="g2">'+
-          '<div class="fg"><label>Nomi (O\'zbek)</label><input class="fi" id="fuz" value="'+(p?p.name_uz:'')+'" placeholder="Classic Burger"></div>'+
-          '<div class="fg"><label>Nomi (Rus)</label><input class="fi" id="fru" value="'+(p?p.name_ru:'')+'" placeholder="Klassik Burger"></div>'+
+          '<div class="fg"><label>Nomi (O\'zbek)</label><input class="fi" id="fuz" value="'+(p?esc(p.name_uz):'')+'" placeholder="Classic Burger"></div>'+
+          '<div class="fg"><label>Nomi (Rus)</label><input class="fi" id="fru" value="'+(p?esc(p.name_ru):'')+'" placeholder="Klassik Burger"></div>'+
         '</div>'+
         '<div class="g2">'+
-          '<div class="fg"><label>Tavsif (O\'zbek)</label><input class="fi" id="fduz" value="'+(p?p.desc_uz:'')+'" placeholder="Mol goshti..."></div>'+
-          '<div class="fg"><label>Tavsif (Rus)</label><input class="fi" id="fdru" value="'+(p?p.desc_ru:'')+'" placeholder="Govyadina..."></div>'+
+          '<div class="fg"><label>Tavsif (O\'zbek)</label><input class="fi" id="fduz" value="'+(p?esc(p.desc_uz):'')+'" placeholder="Mol goshti..."></div>'+
+          '<div class="fg"><label>Tavsif (Rus)</label><input class="fi" id="fdru" value="'+(p?esc(p.desc_ru):'')+'" placeholder="Govyadina..."></div>'+
         '</div>'+
         '<div class="g2">'+
           '<div class="fg"><label>Narx (som)</label><input class="fi" id="fprice" type="number" value="'+(p?p.price:'')+'" placeholder="35000"></div>'+
@@ -201,10 +226,10 @@ function pageAdd(m){
         '</div>'+
         '<div class="fg"><label>Rasm</label>'+
           '<input type="file" accept="image/*" id="fimgFile" onchange="handleImgFile(this)" style="margin-bottom:6px;font-size:12px">'+
-          '<input class="fi" id="fimg" value="'+(p?(p.image||'').replace(/"/g,"&quot;"):'')+'" placeholder="yoki URL kiriting" oninput="prevImg(this.value)">'+
+          '<input class="fi" id="fimg" value="'+(p?esc(p.image||''):'')+'" placeholder="yoki URL kiriting" oninput="prevImg(this.value)">'+
           '<div style="font-size:10px;color:#64748b;margin-top:3px">Telefondan rasm tanlasangiz avtomatik kichiklashtiriladi (max 800px, JPEG)</div>'+
         '</div>'+
-        '<div id="pv" style="margin-top:6px">'+(p&&p.image?'<img src="'+p.image+'" style="height:80px;border-radius:8px">':'')+'</div>'+
+        '<div id="pv" style="margin-top:6px">'+(p&&p.image?'<img src="'+esc(p.image)+'" style="height:80px;border-radius:8px">':'')+'</div>'+
         '<div style="margin-top:12px">'+
           '<button class="sbtn" onclick="saveProd()">Saqlash</button>'+
           '<button class="gbtn" onclick="editId=null;go(\'add\')">Tozalash</button>'+
@@ -274,18 +299,26 @@ function renderCustomers(){
   if(q)list=customers.filter(function(c){
     return (((c.first_name||'')+' '+(c.last_name||'')).toLowerCase().indexOf(q)>=0)||((c.phone||'').indexOf(q)>=0)||((c.card_number||'').indexOf(q)>=0);
   });
-  cb.innerHTML=list.length?list.map(function(c){
+  custView=list;
+  cb.innerHTML=list.length?list.map(function(c,idx){
     var name=((c.first_name||'')+' '+(c.last_name||'')).trim()||'?';
     var sub=(c.age_range||'')+(c.gender==='male'?' д':c.gender==='female'?' а':'');
     var synced=c.iiko_customer_id?'<span class="sp s-delivered">&#9989;</span>':'<span class="sp s-new">&#10060;</span>';
     return '<div class="tr" style="grid-template-columns:1fr 120px 70px 55px 78px">'+
-      '<div><div style="font-weight:700;font-size:12px">'+name+'</div><div style="font-size:10px;color:#64748b">'+sub+'</div></div>'+
-      '<span style="font-size:11px">'+(c.phone||'-')+'</span>'+
-      '<span class="on2" style="font-size:12px">'+(c.card_number||'-')+'</span>'+
+      '<div><div style="font-weight:700;font-size:12px">'+esc(name)+'</div><div style="font-size:10px;color:#64748b">'+esc(sub)+'</div></div>'+
+      '<span style="font-size:11px">'+esc(c.phone||'-')+'</span>'+
+      '<span class="on2" style="font-size:12px">'+esc(c.card_number||'-')+'</span>'+
       '<span>'+synced+'</span>'+
-      '<button class="tb ton" onclick="checkIiko(\''+(c.phone||'')+'\',\''+name.replace(/[\\\\\']/g,"")+'\')">iiko&#128269;</button>'+
+      '<button class="tb ton" onclick="checkIikoIdx('+idx+')">iiko&#128269;</button>'+
     '</div>';
   }).join(''):'<div class="empty">Mijoz topilmadi</div>';
+}
+
+// Ism/telefon onclick ichiga yozilmaydi — ro'yxatdagi tartib raqami orqali olinadi
+var custView=[];
+function checkIikoIdx(i){
+  var c=custView[i];if(!c)return;
+  checkIiko(c.phone||'',((c.first_name||'')+' '+(c.last_name||'')).trim()||'?');
 }
 
 function checkIiko(phone,name){
@@ -295,16 +328,124 @@ function checkIiko(phone,name){
   el('modal').style.display='flex';
   apiFetch('/api/admin/iiko/customer-info?phone='+encodeURIComponent(phone),null,function(err,d){
     if(err){el('MB').innerHTML='<div style="color:#e63946;padding:10px">Xatolik: '+err.message+'</div>';return;}
-    if(!d||!d.found){el('MB').innerHTML='<div style="color:#e63946;padding:10px">&#10060; iiko\'da topilmadi.<br><br>Telefon: '+phone+'<br><br>'+(d&&d.error?'('+d.error+')':'')+'</div>';return;}
-    var cards=(d.cards||[]).join(', ')||'-';
-    var wallets=(d.wallets||[]).map(function(w){return w.name+': '+(w.balance||0);}).join('<br>')||'-';
+    if(!d||!d.found){el('MB').innerHTML='<div style="color:#e63946;padding:10px">&#10060; iiko\'da topilmadi.<br><br>Telefon: '+esc(phone)+'<br><br>'+(d&&d.error?'('+esc(d.error)+')':'')+'</div>';return;}
+    var cards=esc((d.cards||[]).join(', ')||'-');
+    var wallets=(d.wallets||[]).map(function(w){return esc(w.name)+': '+esc(w.balance||0);}).join('<br>')||'-';
     el('MB').innerHTML=
       '<div style="padding:8px 0;color:#16a34a;font-weight:800">&#9989; iiko loyalty\'da mavjud</div>'+
-      '<div class="dl">Ism</div><div class="dv">'+(d.name||'-')+'</div>'+
-      '<div class="dl">Telefon</div><div class="dv">'+(d.phone||'-')+'</div>'+
+      '<div class="dl">Ism</div><div class="dv">'+esc(d.name||'-')+'</div>'+
+      '<div class="dl">Telefon</div><div class="dv">'+esc(d.phone||'-')+'</div>'+
       '<div class="dl">Kartalar</div><div class="dv">'+cards+'</div>'+
       '<div class="dl">Hamyon (bonus)</div><div class="dv">'+wallets+'</div>'+
-      '<div class="dl">iiko ID</div><div class="dv" style="font-size:10px;word-break:break-all">'+(d.id||'-')+'</div>';
+      '<div class="dl">iiko ID</div><div class="dv" style="font-size:10px;word-break:break-all">'+esc(d.id||'-')+'</div>';
+  });
+}
+
+// ---------- FEEDBACK (buyurtmadan keyingi baho, taklif va shikoyatlar) ----------
+var fbDays=30,fbCat='',fbData=null,mOrd=null;
+var FBC={rating:['&#11088;','Baho','#fef3c7','#92400e'],suggestion:['&#128161;','Taklif','#dbeafe','#1e40af'],complaint:['&#128545;','Shikoyat','#fee2e2','#991b1b']};
+var FBD=[[7,'7 kun'],[30,'30 kun'],[0,'Hammasi']];
+
+function pageFeedback(m){
+  m.innerHTML=
+    '<div class="ph"><h1>&#11088; Mijozlar fikrlari</h1><button class="rbtn" onclick="loadFeedback()">&#128260; Yangilash</button></div>'+
+    '<div class="fbox" id="fbDays"></div>'+
+    '<div class="stats" id="fbStats" style="grid-template-columns:repeat(auto-fit,minmax(95px,1fr))"></div>'+
+    '<div class="fbox" id="fbCats"></div>'+
+    '<div id="fbList"><div class="empty">Yuklanmoqda...</div></div>';
+  loadFeedback();
+}
+
+function loadFeedback(){
+  apiFetch('/api/admin/feedback?days='+fbDays+(fbCat?'&category='+fbCat:''),null,function(err,d){
+    var box=el('fbList');if(!box)return;
+    if(err){box.innerHTML='<div class="empty">Xatolik: '+esc(err.message)+'</div>';return;}
+    fbData=d;renderFeedback();
+  });
+}
+
+function setFbDays(d){fbDays=d;loadFeedback();}
+function setFbCat(c){fbCat=c;loadFeedback();}
+
+function avgCard(label,v){
+  var col=v==null?'#94a3b8':v>=4.5?'#16a34a':v>=3.5?'#f59e0b':'#e63946';
+  return '<div class="sc"><div class="sl">'+label+'</div><div class="sv" style="color:'+col+'">'+(v==null?'-':v.toFixed(1)+' <span style="font-size:13px">&#9733;</span>')+'</div></div>';
+}
+
+function renderFeedback(){
+  if(!fbData||!el('fbList'))return;
+  var s=fbData.summary,a=s.avg||{};
+  el('fbDays').innerHTML=FBD.map(function(x){
+    return '<button class="fb'+(fbDays===x[0]?' on':'')+'" onclick="setFbDays('+x[0]+')">'+x[1]+'</button>';
+  }).join('');
+  el('fbStats').innerHTML=
+    avgCard('&#128105;&#8205;&#128188; Kassir muomalasi',a.kassir)+
+    avgCard('&#127828; Taom mazasi',a.taom)+
+    avgCard('&#129529; Tozalik',a.tozalik)+
+    '<div class="sc"><div class="sl">&#128172; Jami fikrlar</div><div class="sv">'+s.total+'</div></div>'+
+    '<div class="sc"><div class="sl">&#128545; Shikoyatlar</div><div class="sv" style="color:'+(s.complaints?'#e63946':'#94a3b8')+'">'+s.complaints+'</div></div>'+
+    '<div class="sc"><div class="sl">&#9888;&#65039; Past baho (1–2)</div><div class="sv" style="color:'+(s.low?'#e63946':'#94a3b8')+'">'+s.low+'</div></div>';
+  var cats=[['','Barchasi',s.total],['rating','&#11088; Baho',s.ratings],['suggestion','&#128161; Taklif',s.suggestions],['complaint','&#128545; Shikoyat',s.complaints]];
+  el('fbCats').innerHTML=cats.map(function(c){
+    return '<button class="fb'+(fbCat===c[0]?' on':'')+'" onclick="setFbCat(\''+c[0]+'\')">'+c[1]+' ('+c[2]+')</button>';
+  }).join('');
+  var items=fbData.items||[];
+  el('fbList').innerHTML=items.length
+    ?items.map(function(f){return fbCard(f,true);}).join('')+(items.length>=300?'<div class="empty">Oxirgi 300 tasi ko\'rsatildi</div>':'')
+    :'<div class="empty">Bu davrda fikr yo\'q</div>';
+}
+
+function stars(n){
+  n=Math.max(0,Math.min(5,n||0));
+  return '<span class="st">'+'&#9733;'.repeat(n)+'<i>'+'&#9733;'.repeat(5-n)+'</i></span>';
+}
+
+function fbCard(f,withOrder){
+  var c=FBC[f.category]||['&#128172;',esc(f.category),'#f1f5f9','#334155'];
+  var bad=f.category==='complaint'||[f.kassir,f.taom,f.tozalik].some(function(v){return v&&v<=2;});
+  var who=esc(f.user_name||'Mijoz')+(f.username?' <span class="mut">@'+esc(f.username)+'</span>':'');
+  var shift=f.shift==='smena1'?'1-smena':f.shift==='smena2'?'2-smena':'';
+  var h='<div class="fbc'+(bad?' bad':'')+'">'+
+    '<div class="fbh"><span class="sp" style="background:'+c[2]+';color:'+c[3]+'">'+c[0]+' '+c[1]+'</span>'+
+      '<b>'+who+'</b><span class="mut" style="margin-left:auto">'+fmtT(f.created_at)+(shift?' &middot; '+shift:'')+'</span></div>';
+  if(f.category==='rating'){
+    h+='<div class="fbr">'+
+      '<div>Kassir '+stars(f.kassir)+' '+(f.kassir||'-')+'/5</div>'+
+      '<div>Taom '+stars(f.taom)+' '+(f.taom||'-')+'/5</div>'+
+      '<div>Tozalik '+stars(f.tozalik)+' '+(f.tozalik||'-')+'/5</div>'+
+    '</div>';
+  }
+  // Uzun izoh qisqartirib ko'rsatiladi, bosilganda to'liq ochiladi
+  if(f.comment)h+='<div class="fbt'+(f.comment.length>320||f.comment.split('\n').length>6?' clamp" onclick="this.classList.remove(\'clamp\')':'')+'">'+esc(f.comment)+'</div>';
+  var act='';
+  if(withOrder&&f.order_id)act+='<button class="tb ton" onclick="openOrderById('+(+f.order_id)+')">&#128230; Buyurtma #'+(+f.order_id)+'</button>';
+  if(f.has_photo)act+='<button class="tb ton" onclick="showFbPhoto('+(+f.id)+',this)">&#128444; Rasmni ko\'rish</button>';
+  if(act)h+='<div class="fba">'+act+'</div><div class="fbimg"></div>';
+  return h+'</div>';
+}
+
+// Rasm server orqali (initData bilan) olinadi va kartaning o'zida ochiladi
+function showFbPhoto(id,btn){
+  var box=btn.closest('.fbc').querySelector('.fbimg');
+  if(box.innerHTML){box.innerHTML='';return;}
+  box.innerHTML='<div class="mut" style="margin-top:6px">Yuklanmoqda...</div>';
+  fetch('/api/admin/feedback/'+id+'/photo',{headers:H})
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.blob();})
+    .then(function(b){box.innerHTML='<img alt="Rasm" src="'+URL.createObjectURL(b)+'">';})
+    .catch(function(e){box.innerHTML='<div class="mut" style="margin-top:6px;color:#e63946">Rasmni yuklab bo\'lmadi ('+esc(e.message)+')</div>';});
+}
+
+// Fikrlar sahifasidan buyurtmani ochish: buyurtmalar va kuryerlar yangidan yuklanadi
+// (kuryerlar ro'yxati bo'sh bo'lsa, "Saqlash" tayinlangan kuryerni olib tashlab yuborardi)
+function openOrderById(id){
+  apiFetch('/api/admin/orders',null,function(err,data){
+    if(err){alert('Xatolik: '+err.message);return;}
+    orders=data||[];
+    apiFetch('/api/admin/couriers',null,function(e2,c){
+      if(!e2)couriers=c||[];
+      if(!orders.some(function(o){return o.id===id;})){alert('Buyurtma #'+id+' topilmadi');return;}
+      openM(id);
+    });
   });
 }
 
@@ -379,9 +520,9 @@ function rows(list){
   return list.map(function(o){
     return '<div class="tr" onclick="openM('+o.id+')">'+
       '<span class="on2">#'+o.id+'</span>'+
-      '<div><div style="font-weight:700;font-size:12px">'+(o.user_name||'?')+'</div>'+
+      '<div><div style="font-weight:700;font-size:12px">'+esc(o.user_name||'?')+'</div>'+
       '<div style="font-size:10px;color:#64748b;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:300px">'+
-        o.items.map(function(i){return i.name_uz+'x'+i.qty;}).join(', ')+'</div></div>'+
+        esc(o.items.map(function(i){return i.name_uz+'x'+i.qty;}).join(', '))+'</div></div>'+
       '<span>'+payable(o).toLocaleString()+" so'm</span>"+
       '<span style="color:#64748b">'+(PL[o.payment]||o.payment)+'</span>'+
       '<span class="sp '+(SC[o.status]||'s-new')+'">'+(SL[o.status]||o.status)+'</span>'+
@@ -398,9 +539,9 @@ function loadProds(){
     prods=data;
     ptb.innerHTML=prods.length?prods.map(function(p){
       return '<div class="pr">'+
-        '<img class="pimg" src="'+(p.image||'')+'" onerror="this.src=\'https://via.placeholder.com/40\'">'+
-        '<div style="flex:1"><div class="pn">'+p.name_uz+' / '+p.name_ru+'</div>'+
-        '<div class="pp">'+(p.price||0).toLocaleString()+" so'm &middot; "+(p.cat_name||'')+'</div></div>'+
+        '<img class="pimg" src="'+esc(p.image||'')+'" onerror="this.src=\'https://via.placeholder.com/40\'">'+
+        '<div style="flex:1"><div class="pn">'+esc(p.name_uz)+' / '+esc(p.name_ru)+'</div>'+
+        '<div class="pp">'+(p.price||0).toLocaleString()+" so'm &middot; "+esc(p.cat_name||'')+'</div></div>'+
         '<button class="tb '+(p.active?'ton':'tof')+'" style="margin-right:6px" onclick="togProd('+p.id+','+p.active+')">'+(p.active?'Faol':'Nofaol')+'</button>'+
         '<button class="tb ton" onclick="editProd('+p.id+')">Tahrir</button>'+
       '</div>';
@@ -419,7 +560,7 @@ function editProd(id){editId=id;go('add');}
 
 function prevImg(url){
   var pv=el('pv');
-  if(pv)pv.innerHTML=url?'<img src="'+url+'" style="height:80px;border-radius:8px;margin-top:4px" onerror="this.style.display=\'none\'">':'';
+  if(pv)pv.innerHTML=url?'<img src="'+esc(url)+'" style="height:80px;border-radius:8px;margin-top:4px" onerror="this.style.display=\'none\'">':'';
 }
 
 function handleImgFile(input){
@@ -473,37 +614,46 @@ function openM(id){
   var o=null;
   for(var i=0;i<orders.length;i++){if(orders[i].id===id){o=orders[i];break;}}
   if(!o)return;
+  mOrd=o.id;
   el('MT').textContent='Buyurtma #'+o.id;
   el('modal').style.display='flex';
+  var lat=Number(o.lat),lng=Number(o.lng),geo=!!(lat&&lng);
   var iH=o.items.map(function(i){
-    return '<div class="ir"><span>'+i.name_uz+' x '+i.qty+'</span><span>'+(i.price*i.qty).toLocaleString()+" so'm</span></div>";
+    return '<div class="ir"><span>'+esc(i.name_uz)+' x '+i.qty+'</span><span>'+(i.price*i.qty).toLocaleString()+" so'm</span></div>";
   }).join('')+feeRow(o)+(o.bonus_used?'<div class="ir"><span>&#128184; Bonus</span><span>−'+o.bonus_used.toLocaleString()+" so'm</span></div>":'')+
     '<div class="ir"><span>Jami to\'lov</span><span style="color:#e63946">'+payable(o).toLocaleString()+" so'm"+(o.delivery_fee_pending?' + yetkazib berish':'')+'</span></div>';
   var cOpts='<option value="">-- Tanlang --</option>';
   couriers.forEach(function(c){
-    cOpts+='<option value="'+c.telegram_id+'"'+(o.courier_id===c.telegram_id?' selected':'')+'>'+c.first_name+' '+(c.last_name||'')+'</option>';
+    cOpts+='<option value="'+esc(c.telegram_id)+'"'+(o.courier_id===c.telegram_id?' selected':'')+'>'+esc(c.first_name+' '+(c.last_name||''))+'</option>';
   });
   var sOpts='';
   Object.keys(SL).forEach(function(v){
     sOpts+='<option value="'+v+'"'+(o.status===v?' selected':'')+'>'+SL[v]+'</option>';
   });
-  var html='<div class="dl">Mijoz</div><div class="dv">'+(o.user_name||'-')+' | '+(o.user_phone||'-')+'</div>';
-  if(o.address)html+='<div class="dl">Manzil</div><div class="dv">'+o.address+'</div>';
-  if(o.comment)html+='<div class="dl">Izoh</div><div class="dv">'+o.comment+'</div>';
+  var html='<div class="dl">Mijoz</div><div class="dv">'+esc(o.user_name||'-')+' | '+esc(o.user_phone||'-')+'</div>';
+  if(o.address)html+='<div class="dl">Manzil</div><div class="dv">'+esc(o.address)+'</div>';
+  if(o.comment)html+='<div class="dl">Izoh</div><div class="dv">'+esc(o.comment)+'</div>';
   html+='<div class="dl">Buyurtma</div><div class="ib">'+iH+'</div>';
-  if(o.lat&&o.lng)html+='<div class="dl">Xarita</div><div id="omap"></div>';
+  if(geo)html+='<div class="dl">Xarita</div><div id="omap"></div>';
+  html+='<div id="ofb"></div>';
   html+='<div class="dl">Kuryer</div><select class="cs" id="csel">'+cOpts+'</select>';
   html+='<div class="dl">Status</div><select class="ss" id="ssel">'+sOpts+'</select>';
   html+='<button class="ab ab-p" onclick="updOrd('+o.id+')">Saqlash va bildirishnoma</button>';
-  if(o.lat&&o.lng)html+='<button class="ab ab-g" style="margin-top:6px" onclick="window.open(\'https://www.google.com/maps?q='+o.lat+','+o.lng+'\',\'_blank\')">Google Maps</button>';
+  if(geo)html+='<button class="ab ab-g" style="margin-top:6px" onclick="window.open(\'https://www.google.com/maps?q='+lat+','+lng+'\',\'_blank\')">Google Maps</button>';
   el('MB').innerHTML=html;
-  if(o.lat&&o.lng){
+  if(geo){
     setTimeout(function(){
-      var m=L.map('omap').setView([o.lat,o.lng],15);
+      var m=L.map('omap').setView([lat,lng],15);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(m);
-      L.marker([o.lat,o.lng]).addTo(m).bindPopup(o.user_name||'Mijoz').openPopup();
+      L.marker([lat,lng]).addTo(m).bindPopup(esc(o.user_name||'Mijoz')).openPopup();
     },100);
   }
+  // Shu buyurtma bo'yicha mijoz qoldirgan baho/izoh
+  apiFetch('/api/admin/feedback?order_id='+o.id,null,function(err,d){
+    var box=el('ofb');
+    if(err||!box||mOrd!==o.id||!d||!d.items||!d.items.length)return;
+    box.innerHTML='<div class="dl">Mijoz fikri</div>'+d.items.map(function(f){return fbCard(f,false);}).join('');
+  });
 }
 
 function updOrd(id){
@@ -518,7 +668,7 @@ function updOrd(id){
   });
 }
 
-function closeM(){el('modal').style.display='none';}
+function closeM(){el('modal').style.display='none';mOrd=null;}
 
 function buildMap(){
   if(!fmap){
@@ -527,13 +677,14 @@ function buildMap(){
   }
   setTimeout(function(){fmap.invalidateSize();},200);
   orders.filter(function(o){return ['new','accepted','cooking','on_way'].indexOf(o.status)>=0&&o.lat&&o.lng;}).forEach(function(o){
-    L.marker([o.lat,o.lng]).addTo(fmap).bindPopup('#'+o.id+' '+(o.user_name||'')+'<br>'+(SL[o.status]||'')+'<br>'+payable(o).toLocaleString()+" so'm");
+    L.marker([o.lat,o.lng]).addTo(fmap).bindPopup('#'+o.id+' '+esc(o.user_name||'')+'<br>'+(SL[o.status]||'')+'<br>'+payable(o).toLocaleString()+" so'm");
   });
 }
 
 function ago(dt){
-  if(!dt)return'-';
-  var d=(Date.now()-new Date(dt).getTime())/60000;
+  var t=parseUtc(dt);
+  if(!t)return'-';
+  var d=(Date.now()-t.getTime())/60000;
   return d<1?'Hozir':d<60?Math.floor(d)+' daq':Math.floor(d/60)+' soat';
 }
 

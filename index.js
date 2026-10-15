@@ -67,6 +67,11 @@ function fmtDist(m) {
   return m < 1000 ? Math.round(m)+' m' : (Math.round(m / 100) / 10)+' km';
 }
 
+// Telegram HTML (parse_mode: 'HTML') uchun matnni xavfsiz qilish
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // Mijoz to'laydigan summa: mahsulotlar − bonus + yetkazib berish
 function orderPayable(order) {
   return Math.max(0, (order.total || 0) - (order.bonus_used || 0)) + (order.delivery_fee || 0);
@@ -811,7 +816,9 @@ bot.action('fb_comp', async ctx => {
 bot.action(/^fb_or_(\d+)_(rating|sugg|comp)$/, async ctx => {
   await ctx.answerCbQuery();
   const uid = String(ctx.from.id);
-  const orderId = parseInt(ctx.match[1]);
+  // Fikr faqat o'z buyurtmasiga bog'lanadi (callback_data'ni qo'lda o'zgartirib boshqasiga yozib bo'lmasin)
+  const own = db.prepare('SELECT user_id FROM orders WHERE id=?').get(parseInt(ctx.match[1]));
+  const orderId = own && String(own.user_id) === uid ? parseInt(ctx.match[1]) : null;
   const type = ctx.match[2];
   if (type === 'rating') {
     setFb(uid, {category:'rating', orderId, kassir:null, taom:null, tozalik:null, awaitingText:false});
@@ -897,18 +904,24 @@ async function finalizeFeedback(ctx, state, comment, photoFileId) {
     comment||'', photoFileId||'', shift, state.orderId||null
   );
 
+  // HTML: Markdown'da ism/username/izohdagi "_" yoki "*" xabarni buzib, guruhga yetkazmasdi
   const icons = {rating:'⭐', suggestion:'💡', complaint:'😡'};
   const names = {rating:'BAHO', suggestion:'TAKLIF', complaint:'SHIKOYAT'};
-  let msg = icons[cat]+' *YANGI '+names[cat]+'*\n';
-  msg += '🕐 '+shiftLabel(shift)+'\n\n';
-  msg += '👤 '+fullName+' ('+username+')\n🆔 `'+u.id+'`\n';
-  if (cat==='rating') {
-    msg += '\n⭐ Kassir muomalasi: '+'⭐'.repeat(state.kassir)+' ('+state.kassir+'/5)\n';
-    msg += '🍔 Taom mazasi: '+'⭐'.repeat(state.taom)+' ('+state.taom+'/5)\n';
-    msg += '🧹 Tozalik: '+'⭐'.repeat(state.tozalik)+' ('+state.tozalik+'/5)\n';
-  }
-  if (state.orderId) msg += '\n📦 Buyurtma #'+state.orderId;
-  if (comment) msg += '\n💬 '+comment;
+  const build = maxComment => {
+    let msg = icons[cat]+' <b>YANGI '+names[cat]+'</b>\n';
+    msg += '🕐 '+shiftLabel(shift)+'\n\n';
+    msg += '👤 '+escHtml(fullName)+' ('+escHtml(username)+')\n🆔 <code>'+u.id+'</code>\n';
+    if (cat==='rating') {
+      msg += '\n⭐ Kassir muomalasi: '+'⭐'.repeat(state.kassir)+' ('+state.kassir+'/5)\n';
+      msg += '🍔 Taom mazasi: '+'⭐'.repeat(state.taom)+' ('+state.taom+'/5)\n';
+      msg += '🧹 Tozalik: '+'⭐'.repeat(state.tozalik)+' ('+state.tozalik+'/5)\n';
+    }
+    if (state.orderId) msg += '\n📦 Buyurtma #'+state.orderId;
+    // Array.from — emoji (surrogate juftligi) o'rtasidan kesilmasin
+    const chars = Array.from(comment || '');
+    if (chars.length) msg += '\n💬 '+escHtml(chars.length > maxComment ? chars.slice(0, maxComment).join('')+'…' : comment);
+    return msg;
+  };
 
   // Buyurtmaga bog'liq baho/taklif/shikoyat → buyurtmalar guruhi
   // Oddiy (buyurtmasiz) — feedback guruhi
@@ -916,11 +929,12 @@ async function finalizeFeedback(ctx, state, comment, photoFileId) {
   for (const id of recipients) {
     try {
       if (photoFileId) {
-        await bot.telegram.sendPhoto(id, photoFileId, {caption: msg, parse_mode: 'Markdown'});
+        // Rasm izohi (caption) 1024 belgigacha — uzun izoh qisqartiriladi, to'liq matni admin panelda
+        await bot.telegram.sendPhoto(id, photoFileId, {caption: build(600), parse_mode: 'HTML'});
       } else {
-        await bot.telegram.sendMessage(id, msg, {parse_mode: 'Markdown'});
+        await bot.telegram.sendMessage(id, build(3500), {parse_mode: 'HTML'});
       }
-    } catch(e) {}
+    } catch(e) { console.warn('[feedback] guruhga yuborilmadi:', e.message); }
   }
 }
 
@@ -1234,7 +1248,13 @@ function priceOrderItems(rawItems) {
 }
 
 app.post('/api/orders', async (req, res) => {
-  const { user_name, user_phone, address, lat, lng, comment, payment } = req.body;
+  const { payment } = req.body;
+  // Mijoz yuborgan matn va raqamlar admin/kuryer panellarida ko'rsatiladi — turini va uzunligini cheklaymiz
+  const str = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
+  const user_name = str(req.body.user_name, 60), user_phone = str(req.body.user_phone, 20);
+  const address = str(req.body.address, 200), comment = str(req.body.comment, 500);
+  const hasGeo = Number.isFinite(req.body.lat) && Number.isFinite(req.body.lng);
+  const lat = hasGeo ? req.body.lat : null, lng = hasGeo ? req.body.lng : null;
   let bonusUsed = Math.max(0, parseInt(req.body.bonus_used || 0) || 0);
   const deliveryType = req.body.delivery_type === 'pickup' ? 'pickup' : 'delivery';
 
@@ -1242,6 +1262,7 @@ app.post('/api/orders', async (req, res) => {
   const tgUser = getTgUser(req);
   if (!tgUser) return res.status(401).json({ error: "Buyurtma faqat Telegram orqali beriladi. Mini-appni botdagi «🛒 Menyuni ochish» tugmasi orqali qayta oching." });
   const user_id = String(tgUser.id);
+  if (!/^\+?\d{9,15}$/.test(user_phone)) return res.status(400).json({ error: "Telefon raqami noto'g'ri" });
 
   if (!PAYMENT_METHODS.includes(payment)) {
     return res.status(400).json({ error: ['click', 'payme'].includes(payment)
@@ -1797,6 +1818,62 @@ app.get('/api/admin/customers', (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
   const customers = db.prepare("SELECT * FROM customers ORDER BY created_at DESC LIMIT 500").all();
   res.json(customers);
+});
+
+// Admin: mijozlar fikrlari — baho / taklif / shikoyat. ?days=30 &category=rating &order_id=12
+app.get('/api/admin/feedback', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  const where = [], args = [];
+  const days = parseInt(req.query.days);
+  if (days > 0) { where.push("created_at >= datetime('now', ?)"); args.push('-'+Math.min(days, 3650)+' days'); }
+  const orderId = parseInt(req.query.order_id);
+  if (orderId > 0) { where.push('order_id = ?'); args.push(orderId); }
+  const base = where.length ? ' WHERE '+where.join(' AND ') : '';
+
+  // Umumiy ko'rsatkichlar tur filtrisiz — tur tugmalarida sonlar ko'rinsin
+  const s = db.prepare(
+    "SELECT COUNT(*) total, TOTAL(category='rating') ratings, TOTAL(category='suggestion') suggestions," +
+    " TOTAL(category='complaint') complaints," +
+    " TOTAL(category='rating' AND (kassir<=2 OR taom<=2 OR tozalik<=2)) low," +
+    " ROUND(AVG(kassir),1) kassir, ROUND(AVG(taom),1) taom, ROUND(AVG(tozalik),1) tozalik FROM feedback" + base
+  ).get(...args);
+
+  const cat = ['rating', 'suggestion', 'complaint'].includes(req.query.category) ? req.query.category : null;
+  const itemWhere = cat ? (base ? base+' AND category = ?' : ' WHERE category = ?') : base;
+  const items = db.prepare(
+    'SELECT id,user_id,user_name,username,category,kassir,taom,tozalik,comment,photo_file_id,shift,order_id,created_at FROM feedback' +
+    itemWhere + ' ORDER BY id DESC LIMIT 300'
+  ).all(...args, ...(cat ? [cat] : []));
+  // Telegram file_id brauzerga berilmaydi — rasm /api/admin/feedback/:id/photo orqali olinadi
+  for (const f of items) { f.has_photo = !!f.photo_file_id; delete f.photo_file_id; }
+
+  res.json({
+    summary: {
+      total: s.total, ratings: s.ratings, suggestions: s.suggestions, complaints: s.complaints, low: s.low,
+      avg: { kassir: s.kassir, taom: s.taom, tozalik: s.tozalik },
+    },
+    items,
+  });
+});
+
+// Fikrga biriktirilgan rasm — Telegram'dan server orqali (bot tokeni brauzerga chiqmaydi)
+app.get('/api/admin/feedback/:id/photo', async (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  const row = db.prepare('SELECT photo_file_id FROM feedback WHERE id=?').get(parseInt(req.params.id) || 0);
+  if (!row || !row.photo_file_id) return res.status(404).json({ error: 'Rasm topilmadi' });
+  try {
+    const link = await bot.telegram.getFileLink(row.photo_file_id);
+    const r = await fetch(String(link));
+    if (!r.ok) throw new Error('http ' + r.status);
+    // Telegram fayl serveri ba'zan application/octet-stream qaytaradi; bot rasmlari doim JPEG
+    const ct = r.headers.get('content-type') || '';
+    res.set('Content-Type', ct.startsWith('image/') ? ct : 'image/jpeg');
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.send(Buffer.from(await r.arrayBuffer()));
+  } catch (e) {
+    console.warn('[feedback] rasm olinmadi:', e.message);
+    res.status(502).json({ error: "Rasmni Telegram'dan olib bo'lmadi" });
+  }
 });
 
 // Admin: mijozni iiko loyalty'da telefon bo'yicha jonli tekshirish
