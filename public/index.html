@@ -99,6 +99,20 @@ textarea.inp{min-height:60px;resize:none}
 .success .icon{font-size:64px;margin-bottom:16px}
 .success h2{font-size:22px;font-weight:800;margin-bottom:8px}
 .success p{font-size:14px;color:#64748b;line-height:1.6}
+.promo{margin:12px 16px 4px;border-radius:16px;padding:14px;background:linear-gradient(135deg,#e63946,#f77f00);color:#fff;box-shadow:0 6px 18px rgba(230,57,70,.25)}
+.promo h3{font-size:17px;font-weight:900;letter-spacing:.3px;margin-bottom:3px}
+.promo .sub{font-size:13px;line-height:1.45}
+.promo .gifts{display:grid;gap:8px;margin-top:10px}
+.promo .gift{background:#fff;color:#1e293b;border-radius:12px;padding:6px 6px 8px;text-align:center;border:3px solid transparent;cursor:pointer;font:inherit;min-width:0}
+.promo .gift img{width:100%;height:58px;object-fit:cover;border-radius:8px;background:#f1f5f9;display:block}
+.promo .gift .gn{font-size:11px;font-weight:700;margin-top:5px;line-height:1.25;overflow-wrap:anywhere}
+.promo .gift .gb{font-size:10px;font-weight:800;color:#16a34a;margin-top:2px}
+.promo .gift.on{border-color:#ffd60a;box-shadow:0 0 0 2px #fff}
+.promo .note{font-size:11px;margin-top:9px;opacity:.95;line-height:1.4}
+.promo .pbtn{margin-top:10px;width:100%;padding:10px;border:none;border-radius:10px;background:#fff;color:#e63946;font-weight:800;font-size:13px;cursor:pointer}
+.promo.off{background:#f1f5f9;color:#475569;box-shadow:none;border:1px solid #e2e8f0}
+.promo.off h3{font-size:15px}
+.promo-tag{display:inline-block;background:#fef3c7;color:#92400e;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:800;margin-left:4px;vertical-align:middle}
 </style></head>
 <body>
 
@@ -109,6 +123,7 @@ textarea.inp{min-height:60px;resize:none}
     <button class="cart-btn" onclick="openLocation()">&#128205; Manzil</button>
   </div>
   <div class="cats" id="cats"></div>
+  <div id="promo-box"></div>
   <div id="menu-body"></div>
   <div class="bottom-bar">
     <button class="checkout-btn" id="goto-cart" onclick="openCart()" disabled>
@@ -325,6 +340,8 @@ const H = {'Content-Type':'application/json','X-Telegram-Init-Data':(tg && tg.in
 
 let cart = {}, cats = [], prods = [], selPay = 'cash', userLat = null, userLng = null, userQuote = null, deliveryType = 'delivery';
 let customerProfile = null;
+// Birinchi buyurtma aksiyasi (1+1): server holati va tanlangan sovg'a (savatchada faqat bitta aksiya qatori)
+let promoSt = null, promoGift = null;
 
 function loadCustomerProfile(cb) {
   if (!UID) { customerProfile = {registered:false}; if(cb)cb(); return; }
@@ -678,6 +695,58 @@ function loadMenu(cb) {
 }
 loadMenu();
 
+function loadPromo(cb) {
+  fetch('/api/promo', {headers: H}).then(r=>r.json()).then(d=>{
+    promoSt = d || null;
+    // Aksiya o'chirilgan yoki mijoz endi foydalana olmasa — savatchadagi aksiya qatori olib tashlanadi
+    if (promoGift && !(promoSt && promoSt.eligible && promoSt.offer.gifts.some(g=>g.id===promoGift))) promoGift = null;
+    renderPromo(); updateUI();
+    if(cb)cb();
+  }).catch(()=>{ if(cb)cb(); });
+}
+loadPromo();
+
+function renderPromo() {
+  const box = document.getElementById('promo-box');
+  if (!box) return;
+  const st = promoSt;
+  if (!st || !st.enabled || !st.offer) { box.innerHTML = ''; return; }
+  const o = st.offer;
+  if (!st.eligible) {
+    const icon = st.reason === 'used' ? '&#9989;' : '&#127873;';
+    box.innerHTML = '<div class="promo off"><h3>'+icon+' '+esc(o.title)+'</h3><div class="sub">'+esc(st.message||'')+'</div>'+
+      (st.reason === 'not_registered' && tg && tg.close ? '<button class="pbtn" onclick="tg.close()">&#128100; Botga qaytib ro\'yxatdan o\'tish</button>' : '')+'</div>';
+    return;
+  }
+  const n = Math.min(o.gifts.length, 3);
+  const sel = o.gifts.find(g=>g.id===promoGift);
+  box.innerHTML = '<div class="promo"><h3>&#127873; '+esc(o.title)+'</h3>'+
+    '<div class="sub"><b>'+esc(o.base.name)+' — '+o.price.toLocaleString()+" so'm</b>, ikkinchi mahsulot sovg'a!<br>Sovg'angizni tanlang (faqat bittasi):</div>"+
+    '<div class="gifts" style="grid-template-columns:repeat('+n+',1fr)">'+o.gifts.map(g=>
+      '<button class="gift'+(g.id===promoGift?' on':'')+'" onclick="selectGift('+g.id+')">'+
+        '<img src="'+esc(g.image||o.base.image||'')+'" alt="" onerror="this.style.visibility=\'hidden\'">'+
+        '<div class="gn">'+esc(g.name)+'</div><div class="gb">&#127873; Bepul</div></button>').join('')+'</div>'+
+    '<div class="note">'+(sel
+      ? '&#9989; Savatchada: '+esc(o.base.name)+' + '+esc(sel.name)+" (sovg'a). Boshqasini tanlasangiz, almashtiriladi."
+      : "Faqat birinchi buyurtma uchun · har bir mijozga bir marta")+'</div></div>';
+}
+
+function selectGift(id) {
+  if (!promoSt || !promoSt.eligible) return;
+  promoGift = id;
+  renderPromo(); updateUI();
+  try { tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred('light'); } catch(e) {}
+}
+function removePromo() { promoGift = null; renderPromo(); updateUI(); openCart(); }
+
+// Savatchadagi aksiya qatori (bo'lmasa null)
+function promoLine() {
+  if (!promoGift || !promoSt || !promoSt.eligible) return null;
+  const o = promoSt.offer, g = o.gifts.find(x=>x.id===promoGift);
+  if (!g) return null;
+  return { title: o.title, name: o.base.name+' + '+g.name, gift: g.name, price: o.price, image: o.base.image || g.image || '' };
+}
+
 loadCustomerProfile(function(){
   // URL hash #card bo'lsa karta sahifasini avtomatik ochish
   if (location.hash === '#card') openCard();
@@ -755,10 +824,11 @@ function cartItems() {
   }).filter(Boolean);
 }
 function cartTotal() {
-  return cartItems().reduce((s,i)=>s+i.price*i.qty, 0);
+  const pl = promoLine();
+  return cartItems().reduce((s,i)=>s+i.price*i.qty, 0) + (pl ? pl.price : 0);
 }
 function cartCount() {
-  return Object.values(cart).reduce((s,q)=>s+q, 0);
+  return Object.values(cart).reduce((s,q)=>s+q, 0) + (promoLine() ? 1 : 0);
 }
 
 function updateUI() {
@@ -784,15 +854,24 @@ function updateUI() {
 
 // Pages
 function openCart() {
-  const items = cartItems();
+  const items = cartItems(), pl = promoLine();
   const el = document.getElementById('cart-body');
-  if(items.length===0) {
+  if(items.length===0 && !pl) {
     el.innerHTML = '<div class="empty"><div class="icon">&#128722;</div><p>Savatchangiz bo\'sh</p><p style="font-size:13px;color:#94a3b8;margin-top:6px">Menyudan mahsulot qo\'shing</p></div>';
     openPage('pg-cart');
     return;
   }
   const tot = cartTotal();
-  el.innerHTML = items.map(i=>
+  el.innerHTML = (pl ?
+    '<div class="cart-item">'+
+    '<img class="cart-img" src="'+esc(pl.image)+'" onerror="this.src=\'https://via.placeholder.com/56\'">'+
+    '<div class="cart-info">'+
+      '<div class="cart-name">'+esc(pl.name)+'<span class="promo-tag">&#127873; '+esc(pl.title)+'</span></div>'+
+      '<div class="cart-price">'+pl.price.toLocaleString()+" so'm</div>"+
+      '<div style="font-size:11px;color:#64748b;margin-top:2px">'+esc(pl.gift)+" — sovg'a · 1 ta</div>"+
+    '</div>'+
+    '<button class="del-btn" onclick="removePromo()">&#128465;</button>'+
+    '</div>' : '') + items.map(i=>
     '<div class="cart-item">'+
     '<img class="cart-img" src="'+(i.image||'')+'" onerror="this.src=\'https://via.placeholder.com/56\'">'+
     '<div class="cart-info">'+
@@ -809,6 +888,7 @@ function openCart() {
   ).join('') +
   '<div style="padding:10px 16px">'+
   '<div class="total-box">'+
+    (pl ? '<div class="total-row"><span>&#127873; '+esc(pl.name)+'</span><span>'+pl.price.toLocaleString()+" so'm</span></div>" : '')+
     items.map(i=>'<div class="total-row"><span>'+i.name_uz+' × '+i.qty+'</span><span>'+(i.price*i.qty).toLocaleString()+" so'm</span></div>").join('')+
     '<div class="total-row big"><span>Jami</span><span>'+tot.toLocaleString()+" so'm</span></div>"+
   '</div>'+
@@ -1027,8 +1107,8 @@ async function submitOrder() {
     return;
   }
 
-  const items = cartItems();
-  if(!items.length) { alert("Savatcha bo'sh!"); return; }
+  const items = cartItems(), pl = promoLine();
+  if(!items.length && !pl) { alert("Savatcha bo'sh!"); return; }
 
   // GPS'siz yetkazish — kuryer manzilni topishi qiyin; mijozga eslatamiz (majburiy emas)
   if(!isPickup && userLat === null) {
@@ -1047,6 +1127,7 @@ async function submitOrder() {
       body: JSON.stringify({
         user_name: name, user_phone: normPhone,
         items: items.map(i=>({id:i.id, name_uz:i.name_uz, qty:i.qty, price:i.price})),
+        promo: pl ? {gift_id: promoGift} : undefined,
         total: cartTotal(),
         address: isPickup ? '' : addr,
         lat: isPickup ? null : userLat,
@@ -1058,7 +1139,8 @@ async function submitOrder() {
     });
     const data = await res.json();
     if(data.ok) {
-      cart = {}; updateUI();
+      cart = {}; promoGift = null; updateUI();
+      loadPromo();
       closePage('pg-checkout');
       // Payme bilan to'lov — checkout sahifasiga yo'naltiramiz
       if (data.payme_url) {
@@ -1090,15 +1172,25 @@ async function submitOrder() {
       openPage('pg-success');
       // Bonusni yangilash
       loadCustomerProfile();
+    } else if (data.promo_invalid) {
+      // Aksiya endi amal qilmaydi (foydalangan, o'chirilgan yoki sovg'a tugagan) — savatchadan olib tashlaymiz
+      btn.disabled = false; btn.textContent = '✅ Buyurtma berish';
+      promoGift = null;
+      loadPromo(()=>{
+        closePage('pg-checkout');
+        openCart();
+        alert(data.error + "\n\nAksiya savatchadan olib tashlandi.");
+      });
     } else if (data.unavailable_ids || data.price_changed) {
       // Mahsulot tugagan yoki narx o'zgargan — menyuni yangilab, savatchani qayta ko'rsatamiz
       btn.disabled = false; btn.textContent = '✅ Buyurtma berish';
       (data.unavailable_ids||[]).forEach(id=>{ delete cart[id]; });
-      loadMenu(()=>{
+      // Aksiya narxi ham o'zgargan bo'lishi mumkin — menyu bilan birga aksiya holatini ham yangilaymiz
+      loadMenu(()=>loadPromo(()=>{
         closePage('pg-checkout');
         openCart();
         alert(data.error + (data.unavailable_ids ? "\n\nUlar savatchadan olib tashlandi." : ''));
-      });
+      }));
     } else {
       btn.disabled = false; btn.textContent = '✅ Buyurtma berish';
       alert('Xatolik: '+(data.error||'Qayta urinib koring'));
