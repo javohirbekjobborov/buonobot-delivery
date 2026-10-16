@@ -8,6 +8,7 @@ const iiko = require('./iiko');
 const payme = require('./payme');
 const telegramAuth = require('./telegramAuth');
 const routing = require('./routing');
+const promo = require('./promo');
 
 // Hozircha yoqilgan funksiyalar. Click/Payme va bonus karta mijozga "Tez orada" bo'lib ko'rinadi;
 // yoqish uchun Railway Variables: PAYMENT_METHODS=cash,click,payme va LOYALTY_ENABLED=true
@@ -65,6 +66,11 @@ async function deliveryQuote(lat, lng) {
 
 function fmtDist(m) {
   return m < 1000 ? Math.round(m)+' m' : (Math.round(m / 100) / 10)+' km';
+}
+
+// Buyurtmadagi aksiya — guruh xabari va iiko izohi uchun
+function promoLabel(order) {
+  return '🎁 AKSIYA: '+promo.getConfig().title+" (birinchi buyurtma, sovg'a bilan)";
 }
 
 // Telegram HTML (parse_mode: 'HTML') uchun matnni xavfsiz qilish
@@ -410,7 +416,8 @@ async function pushOrderToIiko(order, items) {
   // Mahsulotlar ichida iiko_id bor mahsulotlarni tanlaymiz
   const mapped = items.map(it => {
     const prod = db.prepare('SELECT iiko_id FROM products WHERE id=?').get(it.id);
-    return { iikoProductId: prod && prod.iiko_id || null, amount: it.qty, comment: it.name_uz };
+    // Aksiya qatorlari narxi aniq yuboriladi (asosiy — aksiya narxi, sovg'a — 0), qolganlari iiko menyu narxida
+    return { iikoProductId: prod && prod.iiko_id || null, amount: it.qty, comment: it.name_uz, price: it.promo ? it.price : undefined };
   }).filter(x => x.iikoProductId);
   if (mapped.length === 0) return { skipped: 'no_iiko_items' };
 
@@ -419,7 +426,7 @@ async function pushOrderToIiko(order, items) {
       phone: order.user_phone || '',
       customerName: order.user_name || '',
       items: mapped,
-      comment: '🎫 Karta: '+(order.card_number||'-')+'\n'+(order.delivery_fee_text ? order.delivery_fee_text+'\n' : '')+(order.comment || ''),
+      comment: (order.promo_text ? order.promo_text+'\n' : '')+'🎫 Karta: '+(order.card_number||'-')+'\n'+(order.delivery_fee_text ? order.delivery_fee_text+'\n' : '')+(order.comment || ''),
       address: order.address || '',
       lat: order.lat,
       lng: order.lng,
@@ -461,6 +468,7 @@ bot.start(async ctx => {
       (LOYALTY_ENABLED
         ? 'Ro\'yxatdan o\'tib, sizga maxsus karta va '+WELCOME_BONUS.toLocaleString()+" so'm sovg'a bonus beramiz!"
         : "Buyurtma berish uchun ro'yxatdan o'ting.")+
+      promoInviteText()+
       "\n\n📍 Manzilimiz va xarita: /manzil\n\nIltimos telefon raqamingizni yuboring:",
       {
         reply_markup: {
@@ -477,13 +485,32 @@ bot.start(async ctx => {
   return showCustomerHome(ctx, customer);
 });
 
+// Aksiya matnlari (bot): ro'yxatdan o'tmagan — taklif; o'tgan va hali foydalanmagan — eslatma
+function promoGiftNames(offer) {
+  return offer.gifts.map(g => g.name).join(', ');
+}
+function promoInviteText() {
+  const o = promo.getOffer();
+  if (!o) return '';
+  return '\n\n🎁 '+o.title+': ro\'yxatdan o\'ting va birinchi buyurtmangizda '+o.base.name+' '+o.price.toLocaleString()+
+    " so'mga + sovg'a ("+promoGiftNames(o)+')!';
+}
+function promoHomeText(customer) {
+  const st = promo.statusFor(customer.telegram_id);
+  if (!st.enabled || !st.eligible) return '';
+  const o = st.offer;
+  return '\n\n🎁 <b>'+escHtml(o.title)+'</b>: birinchi buyurtmangizda <b>'+escHtml(o.base.name)+' — '+o.price.toLocaleString()+
+    " so'm</b>, ikkinchi mahsulot sovg'a! Tanlang: "+escHtml(promoGiftNames(o))+".\n«🛒 Menyuni ochish» tugmasini bosing.";
+}
+
 async function showCustomerHome(ctx, customer) {
   const greeting = '🍔 Buono Burger\n\n'+
     (LOYALTY_ENABLED
       ? '🎫 Karta raqami: <code>'+customer.card_number+'</code>\n'+
         '💰 Bonus balans: <b>'+customer.bonus_balance.toLocaleString()+" so'm</b>\n\n"
       : '🎫 Bonus karta — <b>tez orada!</b>\n\n')+
-    '⏰ Ish vaqti: '+WORK_HOURS;
+    '⏰ Ish vaqti: '+WORK_HOURS+
+    promoHomeText(customer);
   return ctx.reply(greeting, {
     parse_mode: 'HTML',
     reply_markup: Markup.inlineKeyboard([
@@ -1058,7 +1085,8 @@ function notifyAdmin(order) {
   const items = JSON.parse(order.items);
   let t = '🆕 YANGI BUYURTMA #'+order.id+'\n\n';
   t += (order.user_name||'-')+' | '+(order.user_phone||'-')+'\n';
-  items.forEach(i => { t += '▪ '+i.name_uz+' × '+i.qty+' = '+(i.price*i.qty).toLocaleString()+" so'm\n"; });
+  items.forEach(i => { t += '▪ '+i.name_uz+' × '+i.qty+' = '+(i.gift ? "🎁 bepul" : (i.price*i.qty).toLocaleString()+" so'm")+'\n'; });
+  if (order.promo) t += promoLabel(order)+'\n';
   const feeText = deliveryFeeText(order, true);
   if (feeText || order.bonus_used) {
     t += "\nMahsulotlar: "+order.total.toLocaleString()+" so'm";
@@ -1094,7 +1122,7 @@ function notifyCustomerNewOrder(order) {
 
   let t = '🎉 <b>Buyurtmangiz qabul qilindi!</b>\n';
   t += '🧾 Buyurtma raqami: <b>#'+order.id+'</b>\n\n';
-  items.forEach(i => { t += '▪️ '+esc(i.name_uz)+' × '+i.qty+' — '+(i.price*i.qty).toLocaleString()+" so'm\n"; });
+  items.forEach(i => { t += '▪️ '+esc(i.name_uz)+' × '+i.qty+' — '+(i.gift ? '🎁 bepul' : (i.price*i.qty).toLocaleString()+" so'm")+'\n'; });
   t += '➖➖➖➖➖➖➖➖\n';
   if (bonus > 0 || feeText) {
     t += 'Mahsulotlar: '+order.total.toLocaleString()+" so'm\n";
@@ -1268,6 +1296,7 @@ async function syncIikoStatuses() {
     if (!next) continue;
     if (next === 'cancelled') {
       db.prepare("UPDATE orders SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE id=?").run(o.id);
+      if (promo.releaseForOrder(o.id)) console.log('[promo] order#'+o.id+' bekor — aksiya mijozga qaytarildi');
       console.log('[iiko] order#'+o.id+' bekor qilindi (iiko)');
       continue;
     }
@@ -1296,6 +1325,13 @@ setTimeout(orderTick, Math.min(15, ORDER_TICK_SEC) * 1000);
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
+// Birinchi buyurtma aksiyasi: mijoz uchun holat (taklif, foydalana oladimi, sababi)
+app.get('/api/promo', (req, res) => {
+  const st = promo.statusFor(getTid(req));
+  delete st.customer_phone;
+  res.json(st);
+});
+
 app.get('/api/menu', (req, res) => {
   const cats = db.prepare('SELECT * FROM categories WHERE active=1 ORDER BY sort_order').all();
   const prods = db.prepare('SELECT * FROM products WHERE active=1').all();
@@ -1316,7 +1352,8 @@ app.post('/api/user', (req, res) => {
 // Savatchani DB bo'yicha tekshiradi: mahsulot ham, kategoriyasi ham faol bo'lishi shart.
 // Nom va narx mijozdan emas, DB'dan olinadi (aks holda narx/jami soxtalashtirilishi mumkin).
 // Muvaffaqiyat: {items, total}. Xato: {error} yoki {error, unavailable_ids}.
-function priceOrderItems(rawItems) {
+function priceOrderItems(rawItems, allowEmpty) {
+  if (allowEmpty && Array.isArray(rawItems) && rawItems.length === 0) return { items: [], total: 0 };
   if (!Array.isArray(rawItems) || rawItems.length === 0) return { error: "Savatcha bo'sh" };
   if (rawItems.length > 100) return { error: "Savatchada mahsulot juda ko'p" };
   const qtyById = new Map();
@@ -1372,9 +1409,16 @@ app.post('/api/orders', async (req, res) => {
   }
   if (bonusUsed > 0 && !LOYALTY_ENABLED) return res.status(400).json({ error: 'Bonus karta tez orada ishga tushadi.' });
 
-  const priced = priceOrderItems(req.body.items);
+  // Birinchi buyurtma aksiyasi (1+1): {promo: {gift_id}} — savatchada faqat bitta aksiya qatori bo'ladi
+  let promoOrder = null;
+  if (req.body.promo) {
+    promoOrder = promo.buildOrderLines(user_id, req.body.promo.gift_id);
+    if (promoOrder.error) return res.status(409).json({ error: promoOrder.error, promo_invalid: true });
+  }
+  const priced = priceOrderItems(req.body.items || [], !!promoOrder);
   if (priced.error) return res.status(priced.unavailable_ids ? 409 : 400).json(priced);
-  const { items, total } = priced;
+  const items = promoOrder ? priced.items.concat(promoOrder.lines) : priced.items;
+  const total = priced.total + (promoOrder ? promoOrder.offer.price : 0);
   // Savatcha ochilganidan beri narx o'zgargan bo'lsa — mijoz yangi jamini ko'rib, qayta tasdiqlasin
   if (req.body.total != null && Number(req.body.total) !== total) {
     return res.status(409).json({ error: "Narxlar yangilandi. Yangi jami: "+total.toLocaleString()+" so'm. Savatchani tekshirib, qayta tasdiqlang.", price_changed: true, total });
@@ -1406,8 +1450,21 @@ app.post('/api/orders', async (req, res) => {
     if (bonusUsed > allowedMax) return res.status(400).json({ error: "Bonus limiti oshib ketdi. Maksimum: "+allowedMax.toLocaleString()+" so'm" });
   }
 
-  const r = db.prepare('INSERT INTO orders (user_id,user_name,user_phone,items,total,address,lat,lng,comment,payment,bonus_used,delivery_type,delivery_fee,delivery_fee_pending,delivery_meters,delivery_approx) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-    .run(user_id, user_name, user_phone, JSON.stringify(items), total, address, lat, lng, comment, payment, bonusUsed, deliveryType, deliveryFee, feePending, deliveryMeters, deliveryApprox);
+  // Buyurtma va aksiyadan foydalanish bitta tranzaksiyada: parallel ikkinchi aksiya buyurtmasi UNIQUE'da to'xtaydi
+  let r;
+  try {
+    r = db.transaction(() => {
+      const ins = db.prepare('INSERT INTO orders (user_id,user_name,user_phone,items,total,address,lat,lng,comment,payment,bonus_used,delivery_type,delivery_fee,delivery_fee_pending,delivery_meters,delivery_approx,promo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(user_id, user_name, user_phone, JSON.stringify(items), total, address, lat, lng, comment, payment, bonusUsed, deliveryType, deliveryFee, feePending, deliveryMeters, deliveryApprox, promoOrder ? promo.PROMO_KEY : null);
+      if (promoOrder) promo.recordRedemption(promoOrder.redemption, ins.lastInsertRowid);
+      return ins;
+    })();
+  } catch (e) {
+    if (promoOrder && /UNIQUE/.test(e.message)) {
+      return res.status(409).json({ error: 'Siz bu aksiyadan foydalangansiz. Aksiya har bir mijoz uchun faqat bir marta amal qiladi.', promo_invalid: true });
+    }
+    throw e;
+  }
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(r.lastInsertRowid);
 
   if (bonusUsed > 0) {
@@ -1432,6 +1489,7 @@ app.post('/api/orders', async (req, res) => {
           comment: order.comment,
           delivery_type: order.delivery_type,
           delivery_fee_text: deliveryFeeText(order, true),
+          promo_text: order.promo ? promoLabel(order) : '',
           card_number: customer && customer.card_number
         }, itemsArr);
         if (result.ok && result.orderId) {
@@ -1980,6 +2038,22 @@ app.get('/api/admin/feedback/:id/photo', async (req, res) => {
   }
 });
 
+// Admin: birinchi buyurtma aksiyasi sozlamalari va statistikasi
+app.get('/api/admin/promo', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  const products = db.prepare('SELECT p.id, p.name_uz, p.price, c.name_uz AS cat_name FROM products p LEFT JOIN categories c ON c.id=p.category_id' +
+    ' WHERE p.active=1 AND c.active=1 ORDER BY c.sort_order, p.name_uz').all();
+  res.json({ config: promo.getConfig(), active: !!promo.getOffer(), max_gifts: promo.MAX_GIFTS, products, stats: promo.stats() });
+});
+
+app.put('/api/admin/promo', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
+  const r = promo.saveConfig(req.body || {});
+  if (r.error) return res.status(400).json(r);
+  console.log('[promo] sozlamalar yangilandi:', JSON.stringify(r.config));
+  res.json({ ok: true, config: r.config, active: !!promo.getOffer() });
+});
+
 // Admin: mijozni iiko loyalty'da telefon bo'yicha jonli tekshirish
 app.get('/api/admin/iiko/customer-info', async (req, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: 'Forbidden' });
@@ -2068,6 +2142,7 @@ app.put('/api/admin/orders/:id', (req, res) => {
     db.prepare('UPDATE orders SET status=?,courier_id=?,courier_name=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')
       .run(status, courier_id||null, courier_name||null, req.params.id);
     stampDelivered(req.params.id, status);
+    if (status === 'cancelled') promo.releaseForOrder(parseInt(req.params.id));
     const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
     notifyCustomer(order);
     if (courier_id && status==='on_way') notifyCourier(courier_id, order);

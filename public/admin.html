@@ -89,6 +89,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9;
     <button class="nb" id="nb-add" onclick="go('add')">&#10133; Qo'shish</button>
     <button class="nb" id="nb-customers" onclick="go('customers')">&#128100; Mijozlar</button>
     <button class="nb" id="nb-feedback" onclick="go('feedback')">&#11088; Fikrlar</button>
+    <button class="nb" id="nb-promo" onclick="go('promo')">&#127873; Aksiya</button>
     <button class="nb" id="nb-broadcast" onclick="go('broadcast')">&#128227; Xabar yuborish</button>
   </nav>
   <div class="uid" id="uid-info">yuklanmoqda...</div>
@@ -111,7 +112,7 @@ var H={'Content-Type':'application/json','X-Telegram-Init-Data':(tg&&tg.initData
 document.getElementById('uid-info').textContent=UID?'ID: '+UID:'UID topilmadi!';
 
 var orders=[],couriers=[],prods=[],cats=[],customers=[],fmap=null,cFilt='all',editId=null,curPage='dash';
-var PAGES=['dash','orders','map','menu','add','customers','feedback','broadcast'];
+var PAGES=['dash','orders','map','menu','add','customers','feedback','promo','broadcast'];
 var SL={new:'Yangi',accepted:'Qabul',cooking:'Tayyorlanmoqda',on_way:"Yo'lda",delivered:'Yetkazildi',cancelled:'Bekor'};
 var SC={new:'s-new',accepted:'s-accepted',cooking:'s-cooking',on_way:'s-on_way',delivered:'s-delivered',cancelled:'s-cancelled'};
 var PL={cash:'Naqd',click:'Click',payme:'Payme'};
@@ -146,6 +147,7 @@ function go(name){
   else if(name==='add')pageAdd(m);
   else if(name==='customers')pageCustomers(m);
   else if(name==='feedback')pageFeedback(m);
+  else if(name==='promo')pagePromo(m);
   else if(name==='broadcast')pageBroadcast(m);
 }
 
@@ -433,6 +435,64 @@ function showFbPhoto(id,btn){
     .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.blob();})
     .then(function(b){box.innerHTML='<img alt="Rasm" src="'+URL.createObjectURL(b)+'">';})
     .catch(function(e){box.innerHTML='<div class="mut" style="margin-top:6px;color:#e63946">Rasmni yuklab bo\'lmadi ('+esc(e.message)+')</div>';});
+}
+
+// ---------- AKSIYA (birinchi buyurtma 1+1) ----------
+var promoData=null;
+function pagePromo(m){
+  m.innerHTML='<div class="ph"><h1>&#127873; Aksiya: birinchi buyurtma</h1><button class="rbtn" onclick="loadPromoAdmin()">&#128260;</button></div><div id="promoBody"><div class="empty">Yuklanmoqda...</div></div>';
+  loadPromoAdmin();
+}
+function loadPromoAdmin(cb){
+  apiFetch('/api/admin/promo',null,function(err,d){
+    var b=el('promoBody');if(!b)return;
+    if(err){b.innerHTML='<div class="empty">Xatolik: '+esc(err.message)+'</div>';return;}
+    promoData=d;renderPromoAdmin();
+    if(cb)cb();
+  });
+}
+function prodOpts(sel,empty){
+  return '<option value="">'+empty+'</option>'+promoData.products.map(function(p){
+    return '<option value="'+p.id+'"'+(p.id===sel?' selected':'')+'>'+esc(p.name_uz)+' — '+(p.price||0).toLocaleString()+" so'm ("+esc(p.cat_name||'')+')</option>';
+  }).join('');
+}
+function renderPromoAdmin(){
+  var c=promoData.config,st=promoData.stats,g=c.gift_product_ids||[];
+  var gifts='';
+  for(var i=0;i<promoData.max_gifts;i++){
+    gifts+='<div class="fg"><label>Sovg\'a varianti '+(i+1)+'</label><select class="fi pgift">'+prodOpts(g[i]||null,"— yo'q —")+'</select></div>';
+  }
+  var state=c.enabled?(promoData.active?'<span class="sp s-delivered">&#9989; Faol — mijozlar ko\'rmoqda</span>':'<span class="sp s-new">&#9888;&#65039; Yoqilgan, lekin mahsulot menyuda yo\'q</span>'):'<span class="sp s-cancelled">O\'chirilgan</span>';
+  el('promoBody').innerHTML=
+    '<div class="form">'+
+      '<div style="margin-bottom:10px">'+state+'</div>'+
+      '<label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin-bottom:10px;cursor:pointer"><input type="checkbox" id="pEn"'+(c.enabled?' checked':'')+' style="width:18px;height:18px"> Aksiya yoqilgan</label>'+
+      '<div class="fg"><label>Sarlavha (mijozga ko\'rinadi)</label><input class="fi" id="pTitle" value="'+esc(c.title)+'" maxlength="60"></div>'+
+      '<div class="g2">'+
+        '<div class="fg"><label>Asosiy mahsulot</label><select class="fi" id="pBase">'+prodOpts(c.base_product_id,'— tanlang —')+'</select></div>'+
+        '<div class="fg"><label>Aksiya narxi (so\'m)</label><input class="fi" id="pPrice" type="number" min="0" step="1000" value="'+(+c.price||0)+'"></div>'+
+      '</div>'+gifts+
+      '<div style="font-size:11px;color:#64748b;line-height:1.5;margin:4px 0 10px">Mijoz asosiy mahsulotni aksiya narxida oladi va sovg\'a variantlaridan <b>faqat bittasini</b> tanlaydi. '+
+        'Aksiya faqat botda ro\'yxatdan o\'tgan mijozning <b>birinchi buyurtmasida</b>, har bir Telegram akkaunt va telefon raqamga <b>bir marta</b> amal qiladi. '+
+        'iiko\'ga asosiy mahsulot aksiya narxida, sovg\'a 0 so\'mda, «AKSIYA» izohi bilan tushadi. Buyurtma bekor qilinsa, aksiya mijozga qaytariladi.</div>'+
+      '<button class="sbtn" onclick="savePromo()">Saqlash</button><span id="pMsg" style="margin-left:10px;font-size:12px"></span>'+
+    '</div>'+
+    '<div class="ph"><h2 style="font-size:14px;font-weight:700">Foydalanganlar: '+st.total+'</h2></div>'+
+    '<div class="tbl"><div class="th" style="grid-template-columns:60px 1fr 1fr 90px 110px"><span>#</span><span>Mijoz</span><span>Sovg\'a</span><span>Status</span><span>Vaqt</span></div>'+
+    (st.last.length?st.last.map(function(r){
+      return '<div class="tr" style="grid-template-columns:60px 1fr 1fr 90px 110px" onclick="openOrderById('+(+r.order_id)+')">'+
+        '<span class="on2">#'+(+r.order_id)+'</span><span>'+esc(r.user_name||'-')+'</span><span>'+esc(r.gift_name||'-')+'</span>'+
+        '<span class="sp '+(SC[r.status]||'s-new')+'">'+(SL[r.status]||esc(r.status||'-'))+'</span><span style="font-size:10px;color:#64748b">'+fmtT(r.created_at)+'</span></div>';
+    }).join(''):'<div class="empty">Hali hech kim foydalanmagan</div>')+'</div>';
+}
+function savePromo(){
+  var gifts=[];qsa('.pgift').forEach(function(s){if(s.value)gifts.push(parseInt(s.value));});
+  var body={enabled:el('pEn').checked,title:el('pTitle').value,base_product_id:parseInt(el('pBase').value)||null,price:parseInt(el('pPrice').value),gift_product_ids:gifts};
+  var msg=el('pMsg');msg.style.color='#64748b';msg.textContent='Saqlanmoqda...';
+  apiFetch('/api/admin/promo',{method:'PUT',headers:H,body:JSON.stringify(body)},function(err){
+    if(err){msg.style.color='#e63946';msg.textContent=err.message;return;}
+    loadPromoAdmin(function(){var m2=el('pMsg');if(m2){m2.style.color='#16a34a';m2.textContent='\u2705 Saqlandi';}});
+  });
 }
 
 // Fikrlar sahifasidan buyurtmani ochish: buyurtmalar va kuryerlar yangidan yuklanadi

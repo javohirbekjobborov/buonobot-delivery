@@ -110,12 +110,12 @@ async function createDelivery(payload) {
   if (!isConfigured()) throw new Error('iiko not configured');
   if (!TERMINAL_GROUP_ID) throw new Error('IIKO_TERMINAL_GROUP_ID missing');
 
-  const items = (payload.items || []).filter(i => i.iikoProductId && i.amount > 0).map(i => ({
-    productId: i.iikoProductId,
-    amount: i.amount,
-    type: 'Product',
-    comment: i.comment || ''
-  }));
+  const items = (payload.items || []).filter(i => i.iikoProductId && i.amount > 0).map(i => {
+    const it = { productId: i.iikoProductId, amount: i.amount, type: 'Product', comment: i.comment || '' };
+    // Aksiya: narx menyudagidan farqli yuboriladi (sovg'a — 0)
+    if (typeof i.price === 'number') it.price = i.price;
+    return it;
+  });
   if (!items.length) throw new Error('No iiko items to send');
 
   const body = {

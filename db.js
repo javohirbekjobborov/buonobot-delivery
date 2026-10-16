@@ -102,6 +102,22 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE INDEX IF NOT EXISTS idx_payme_order ON payme_transactions(order_id);
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  );
+  -- Aksiyadan foydalanish: bir Telegram akkaunt va bir telefon raqam — bir marta
+  CREATE TABLE IF NOT EXISTS promo_redemptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    promo TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    order_id INTEGER NOT NULL,
+    gift_product_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(promo, user_id),
+    UNIQUE(promo, phone)
+  );
 `);
 
 try { db.exec("ALTER TABLE orders ADD COLUMN bonus_used INTEGER DEFAULT 0"); } catch(e) {}
@@ -127,6 +143,9 @@ try { db.exec("ALTER TABLE orders ADD COLUMN delivery_approx INTEGER DEFAULT 0")
 // iiko'dagi buyurtma holati (Delivered, Closed, ...) va yetkazilgan vaqt — baho so'rovi shundan keyin yuboriladi
 try { db.exec("ALTER TABLE orders ADD COLUMN iiko_status TEXT"); } catch(e) {}
 try { db.exec("ALTER TABLE orders ADD COLUMN delivered_at DATETIME"); } catch(e) {}
+
+// Buyurtmada qo'llangan aksiya kaliti (masalan 'first_order_1plus1')
+try { db.exec("ALTER TABLE orders ADD COLUMN promo TEXT"); } catch(e) {}
 
 try { db.exec("ALTER TABLE customers ADD COLUMN age_range TEXT"); } catch(e) {}
 try { db.exec("ALTER TABLE customers ADD COLUMN gender TEXT"); } catch(e) {}
