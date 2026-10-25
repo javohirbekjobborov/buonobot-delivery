@@ -965,14 +965,23 @@ async function finalizeFeedback(ctx, state, comment, photoFileId) {
   }
 }
 
-function buildStatsReport(title) {
-  const now = new Date();
+// Toshkent (UTC+5) bo'yicha oy chegaralari — SQLite CURRENT_TIMESTAMP formatida (UTC, "YYYY-MM-DD HH:MM:SS").
+// offset: 0 — joriy oy, -1 — o'tgan oy
+function tashkentMonthRange(offset, nowMs) {
+  const t = new Date((nowMs || Date.now()) + 5*3600*1000);
+  const y = t.getUTCFullYear(), m = t.getUTCMonth() + (offset || 0);
+  const fmt = ms => new Date(ms - 5*3600*1000).toISOString().slice(0, 19).replace('T', ' ');
+  const first = new Date(Date.UTC(y, m, 1));
+  return { start: fmt(Date.UTC(y, m, 1)), end: fmt(Date.UTC(y, m + 1, 1)), month: first.getUTCMonth(), year: first.getUTCFullYear() };
+}
+
+function buildStatsReport(title, monthOffset) {
   const months = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr'];
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const rows = db.prepare("SELECT * FROM feedback WHERE created_at >= ?").all(monthStart);
+  const range = tashkentMonthRange(monthOffset || 0);
+  const rows = db.prepare("SELECT * FROM feedback WHERE created_at >= ? AND created_at < ?").all(range.start, range.end);
   const labels = {smena1: '1-smena (09:00–18:30)', smena2: '2-smena (18:30–04:00)'};
 
-  let report = '📊 *'+title+' — '+months[now.getMonth()]+' '+now.getFullYear()+'*\n\n';
+  let report = '📊 *'+title+' — '+months[range.month]+' '+range.year+'*\n\n';
 
   for (const s of ['smena1','smena2']) {
     const sr = rows.filter(r => r.shift === s);
@@ -1055,16 +1064,16 @@ bot.on('my_chat_member', async ctx => {
   } catch(e) {}
 });
 
-// Oylik avto-hisobot (har soat tekshiriladi, har oyning 1-kunida 09:00 da yuboriladi)
-const monthlyReportSent = new Set();
+// Oylik avto-hisobot: har oyning 1-kuni 09:00 dan keyin (Toshkent) O'TGAN oy bo'yicha, bir marta.
+// Yuborilgani DB'da belgilanadi — 09:00 atrofidagi deploy/restartda takror yuborilmaydi.
 setInterval(async () => {
   try {
     const now = new Date(Date.now() + 5*3600*1000);
-    if (now.getUTCDate() !== 1 || now.getUTCHours() !== 9) return;
-    const key = 'monthly_'+now.getUTCFullYear()+'_'+now.getUTCMonth();
-    if (monthlyReportSent.has(key)) return;
-    monthlyReportSent.add(key);
-    const text = buildStatsReport('OYLIK HISOBOT');
+    if (now.getUTCDate() !== 1 || now.getUTCHours() < 9) return;
+    const prev = tashkentMonthRange(-1);
+    const key = 'monthly_report:'+prev.year+'-'+String(prev.month + 1).padStart(2, '0');
+    if (db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, CURRENT_TIMESTAMP)').run(key).changes !== 1) return;
+    const text = buildStatsReport('OYLIK HISOBOT', -1);
     for (const id of generalFeedbackRecipients()) {
       try { await bot.telegram.sendMessage(id, text, {parse_mode: 'Markdown'}); } catch(e) {}
     }
@@ -2262,6 +2271,19 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => console.log('Server: ' + PORT));
 bot.launch().catch(e => console.error('[bot] launch failed:', e.message));
+
+// Bot menyusidagi buyruqlar (BotFather /setcommands o'rniga): /manzil bo'lmasa qo'shamiz, mavjudlari saqlanadi
+async function ensureBotCommands() {
+  try {
+    const cur = await bot.telegram.getMyCommands();
+    if (!Array.isArray(cur) || cur.some(c => c.command === 'manzil')) return;
+    const next = (cur.length ? cur : [{ command: 'start', description: '🍔 Bosh sahifa va menyu' }])
+      .concat([{ command: 'manzil', description: "📍 Manzil, xarita va yo'l" }]);
+    await bot.telegram.setMyCommands(next);
+    console.log('[bot] buyruqlar menyusi: '+next.map(c => '/'+c.command).join(' '));
+  } catch (e) { console.warn('[bot] buyruqlar menyusi yangilanmadi:', e.message); }
+}
+setTimeout(ensureBotCommands, 3000);
 
 // iiko menyusini avtomatik sinxronlash (ishga tushganda + har 4 soatda)
 if (iiko.isConfigured()) {
